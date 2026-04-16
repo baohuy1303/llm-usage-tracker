@@ -5,6 +5,8 @@ In Go, you are giving the Database an object and saying, "Hey, write the ID on t
 
 - For most funcs we only return an error object, because we are given the address, and by directly modifying the object on the address = we are already modifying the original object. This is why we don't need to return the object itself (no extra copying of data). Only error is returned.
 
+- Use structs / create new struct when you need to add custom funcs to a type that's not defined in the same package. AND when you need to pass data between layers. So that we don't have to pass multiple arguments at the top layers down. Only pass it once at the top layer.
+And overall just more clean when we need to change params.
 
 Flow:
 1. HTTP Handler receives a request.

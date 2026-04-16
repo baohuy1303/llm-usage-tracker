@@ -28,7 +28,7 @@ func (h *ProjectHandler) CreateProject(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Call the service
-	err = h.service.CreateProject(req.Name, req.Budget)
+	project, err := h.service.CreateProject(r.Context(), req.Name, req.Budget)
 	if err != nil {
 		http.Error(w, "Failed to create project", http.StatusInternalServerError)
 		return
@@ -40,7 +40,7 @@ func (h *ProjectHandler) CreateProject(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 
 	// Encode the response body, and send it to the client (appear in response when we do the request)
-	json.NewEncoder(w).Encode(req)
+	json.NewEncoder(w).Encode(project)
 }
 
 func (h *ProjectHandler) ListProjects(w http.ResponseWriter, r *http.Request) {

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"llm-usage-tracker/internal/store"
 )
@@ -15,12 +16,12 @@ func NewProjectService(repo *store.ProjectRepo) *ProjectService {
 	return &ProjectService{repo: repo}
 }
 
-func (s *ProjectService) CreateProject(name string, budget int) error {
+func (s *ProjectService) CreateProject(ctx context.Context, name string, budget int) (*store.Project, error) {
 	if name == "" {
-		return errors.New("name cannot be empty")
+		return nil, errors.New("name cannot be empty")
 	}
 	if budget <= 0 {
-		return errors.New("budget must be positive")
+		return nil, errors.New("budget must be positive")
 	}
 
 	project := store.Project{
@@ -28,12 +29,12 @@ func (s *ProjectService) CreateProject(name string, budget int) error {
 		Budget: int64(budget),
 	}
 
-	err := s.repo.Create(&project)
+	err := s.repo.Create(ctx, &project)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return &project, nil
 }
 
 func (s *ProjectService) ListProjects() ([]store.Project, error) {

@@ -2,6 +2,7 @@ package store
 
 import(
 	"database/sql"
+	"context"
 )
 
 // Go doesn't let us add custome funcs to a type that's not defined in the same package
@@ -19,8 +20,9 @@ func NewProjectRepo(db *sql.DB) *ProjectRepo {
 
 // (r *ProjectRepo) is called a receiver
 // Means this func belongs to this type (like defining a class then having a method with this. or self.)
-func (r *ProjectRepo) Create(p *Project) error {
-    res, err := r.db.Exec(
+func (r *ProjectRepo) Create(ctx context.Context, p *Project) error {
+    res, err := r.db.ExecContext(
+        ctx,
         "INSERT INTO projects(name, budget) VALUES (?, ?)",
         p.Name, p.Budget,
     )
