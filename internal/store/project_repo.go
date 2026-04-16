@@ -1,0 +1,56 @@
+package store
+
+import(
+	"database/sql"
+)
+
+// Go doesn't let us add custome funcs to a type that's not defined in the same package
+// (database/sql is from the stdlib, not our package)
+// So we create a new type ProjectRepo to add custom query logic
+type ProjectRepo struct {
+	db *sql.DB
+}
+
+// Constructor function: pass in a pointer to the database connection
+// and return the address of that to the caller (repo object)
+func NewProjectRepo(db *sql.DB) *ProjectRepo {
+	return &ProjectRepo{db: db}
+}
+
+// (r *ProjectRepo) is called a receiver
+// Means this func belongs to this type (like defining a class then having a method with this. or self.)
+func (r *ProjectRepo) Create(p *Project) error {
+    res, err := r.db.Exec(
+        "INSERT INTO projects(name, budget) VALUES (?, ?)",
+        p.Name, p.Budget,
+    )
+    if err != nil {
+        return err
+    }
+
+    id, _ := res.LastInsertId()
+    p.ID = id
+    return nil
+}
+
+func (r *ProjectRepo) List() ([]Project, error) {
+	// Open a connection to the database
+    rows, err := r.db.Query("SELECT id, name, budget, created_at FROM projects")
+    if err != nil {
+        return nil, err
+    }
+
+	// Close the connection when the function returns
+	// Put after err check, because rows might be nil
+    defer rows.Close()
+
+    var result []Project
+	// Loop through the rows and fill our result slice
+    for rows.Next() {
+        var p Project
+        rows.Scan(&p.ID, &p.Name, &p.Budget, &p.CreatedAt)
+        result = append(result, p)
+    }
+
+    return result, nil
+}
