@@ -13,6 +13,8 @@ func main(){
 	// Get the database path from the environment variable or use the default
 	dbPath := os.Getenv("DATABASE_URL")
 	if dbPath == "" {
+		// Create the data directory if it doesn't exist
+		os.MkdirAll("./data", 0755)
 		dbPath = "./data/app.db"
 	}
 
