@@ -11,5 +11,6 @@ func NewRouter(ph *ProjectHandler) *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/projects", ph.ListProjects)
 	mux.HandleFunc("/projects/create", ph.CreateProject)
+	mux.HandleFunc("/projects/{id}", ph.GetProjectByID)
 	return mux
 }

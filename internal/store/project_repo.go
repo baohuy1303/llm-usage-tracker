@@ -20,6 +20,8 @@ func NewProjectRepo(db *sql.DB) *ProjectRepo {
 
 // (r *ProjectRepo) is called a receiver
 // Means this func belongs to this type (like defining a class then having a method with this. or self.)
+
+
 func (r *ProjectRepo) Create(ctx context.Context, p *Project) error {
     res, err := r.db.ExecContext(
         ctx,
@@ -55,4 +57,17 @@ func (r *ProjectRepo) List() ([]Project, error) {
     }
 
     return result, nil
+}
+
+func (r *ProjectRepo) GetByID(ctx context.Context, id int64) (*Project, error) {
+	var p Project
+	err := r.db.QueryRowContext(
+		ctx,
+		"SELECT id, name, budget, created_at FROM projects WHERE id = ?",
+		id,
+	).Scan(&p.ID, &p.Name, &p.Budget, &p.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &p, nil
 }
