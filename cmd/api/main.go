@@ -1,11 +1,13 @@
 package main
 
 import(
-	"log"
+	"context"
+	"log/slog"
 	"net/http"
 	"os"
 	"llm-usage-tracker/internal/store"
 	"llm-usage-tracker/internal/service"
+	appredis "llm-usage-tracker/internal/redis"
 	apphttp "llm-usage-tracker/internal/http" // Renamed to avoid conflict with stdlib http
 )
 
@@ -21,15 +23,27 @@ func main(){
 	// Initialize the database
 	db, err := store.NewSQLite(dbPath)
 	if err != nil {
-		log.Fatalf("Failed to initialize database: %v", err)
+		slog.Error("Failed to initialize database", "err", err)
+		os.Exit(1)
 	}
 	defer db.Close()
 
 	// Initialize the schema
 	err = store.InitSchema(db)
 	if err != nil {
-		log.Fatalf("Failed to initialize schema: %v", err)
+		slog.Error("Failed to initialize schema", "err", err)
+		os.Exit(1)
 	}
+
+	// Initialize Redis
+	ctx := context.Background()
+	rdb, err := appredis.NewClient(ctx, "localhost:6379")
+	if err != nil {
+		slog.Error("Failed to initialize Redis", "err", err)
+		os.Exit(1)
+	}
+	defer rdb.Close()
+	slog.Info("Redis connected")
 
 	// Create the repository and service
 	projectRepo := store.NewProjectRepo(db)
@@ -42,8 +56,9 @@ func main(){
 	router := apphttp.NewRouter(projectHandler)
 
 	// Start the server
-	log.Println("Server started on :8080")
+	slog.Info("Server started on :8080")
 	if err := http.ListenAndServe(":8080", router); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
+		slog.Error("Failed to start server", "err", err)
+		os.Exit(1)
 	}
 }

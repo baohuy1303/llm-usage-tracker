@@ -8,8 +8,10 @@ In Go, you are giving the Database an object and saying, "Hey, write the ID on t
 - Use structs / create new struct when you need to add custom funcs to a type that's not defined in the same package. AND when you need to pass data between layers. So that we don't have to pass multiple arguments at the top layers down. Only pass it once at the top layer.
 And overall just more clean when we need to change params.
 
+- context.Context: When the user closes the tab, the ctx is "canceled." SQLite and Redis see this signal immediately and stop the query right then and there, saving your server resources. Every log message from the Service and Database folders can then look at the ctx and print that same ID.
+
 Flow:
-1. HTTP Handler receives a request.
+1. HTTP Handler receives a request. (create ctx and pass it down)
 2. HTTP Handler calls the Service. (final error handling and response sending)
 3. Service calls the Repository. (business logic)
 4. Repository interacts with the Database. (data access)
