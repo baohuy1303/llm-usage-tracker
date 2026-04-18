@@ -71,3 +71,21 @@ func (r *ProjectRepo) GetByID(ctx context.Context, id int64) (*Project, error) {
 	}
 	return &p, nil
 }
+
+func (r *ProjectRepo) Update(ctx context.Context, p *Project) error {
+	_, err := r.db.ExecContext(
+		ctx,
+		"UPDATE projects SET name = ?, budget = ? WHERE id = ?",
+		p.Name, p.Budget, p.ID,
+	)
+	return err
+}
+
+func (r *ProjectRepo) Delete(ctx context.Context, id int64) error {
+	_, err := r.db.ExecContext(
+		ctx,
+		"DELETE FROM projects WHERE id = ?",
+		id,
+	)
+	return err
+}

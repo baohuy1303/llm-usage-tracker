@@ -1,0 +1,51 @@
+@baseUrl = http://localhost:8080
+
+### GET Health Check
+GET {{baseUrl}}/healthz
+
+### Create Project
+POST {{baseUrl}}/projects/create
+Content-Type: application/json
+
+{
+  "name": "Super AI Project",
+  "budget": 50000
+}
+
+### Error - Create Project with duplicate name
+POST {{baseUrl}}/projects/create
+Content-Type: application/json
+
+{
+  "name": "Super AI Project",
+  "budget": 10000
+}
+
+### List Projects
+GET {{baseUrl}}/projects
+
+### Get Project By ID
+GET {{baseUrl}}/projects/1
+
+### Update Project (Partial Update)
+PATCH {{baseUrl}}/projects/1
+Content-Type: application/json
+
+{
+  "budget": 75000
+}
+
+### Update Project (Full Update)
+PATCH {{baseUrl}}/projects/1
+Content-Type: application/json
+
+{
+  "name": "Mega AI Project",
+  "budget": 100000
+}
+
+### Delete Project
+DELETE {{baseUrl}}/projects/1
+
+### Error - Get Deleted Project
+GET {{baseUrl}}/projects/1
