@@ -1,0 +1,1 @@
+- Add in table for model - 1M tokens / cost support for users to add their own models.

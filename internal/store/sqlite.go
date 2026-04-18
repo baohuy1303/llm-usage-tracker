@@ -22,5 +22,33 @@ func NewSQLite(path string) (*sql.DB, error) {
 
 func InitSchema(db *sql.DB) error {
 	_, err := db.Exec(schemaSQL)
-	return err
-}
+	if err != nil {
+		return err
+	}
+
+	var count int
+	err = db.QueryRow("SELECT COUNT(*) FROM models").Scan(&count)
+	if err != nil {
+		return err
+	}
+
+	if count == 0 {
+		_, err = db.Exec(`
+    INSERT OR IGNORE INTO models (name, input_per_million_cents, output_per_million_cents) VALUES
+  ('claude-sonnet-4-20250514',  300,  1500),
+  ('claude-haiku-4-20250514',    80,   400),
+  ('claude-opus-4-20250514',   1500,  7500),
+  ('gpt-4o',                    250,  1000),
+  ('gpt-4o-mini',                15,    60),
+  ('gpt-4.1',                   200,   800),
+  ('gpt-4.1-mini',               40,   160),
+  ('gemini-2.5-pro',            150,  1000),
+  ('gemini-2.5-flash',           15,   60);
+  `)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}

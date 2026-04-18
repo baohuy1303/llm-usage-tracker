@@ -49,3 +49,36 @@ DELETE {{baseUrl}}/projects/1
 
 ### Error - Get Deleted Project
 GET {{baseUrl}}/projects/1
+
+
+### ----------------------------------------------------
+### MODELS
+### ----------------------------------------------------
+
+### List Models
+GET {{baseUrl}}/models
+
+### Create Model
+POST {{baseUrl}}/models
+Content-Type: application/json
+
+{
+  "name": "custom-model-x",
+  "input_per_million_cents": 50,
+  "output_per_million_cents": 200
+}
+
+### Get Model By ID
+GET {{baseUrl}}/models/1
+
+### Update Model (Partial Update)
+PATCH {{baseUrl}}/models/10
+Content-Type: application/json
+
+{
+  "output_per_million_cents": 250
+}
+
+### Delete Model
+DELETE {{baseUrl}}/models/10
+

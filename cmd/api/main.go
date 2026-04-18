@@ -45,15 +45,18 @@ func main(){
 	defer rdb.Close()
 	slog.Info("Redis connected")
 
-	// Create the repository and service
+	// Create the repository and service for projects
 	projectRepo := store.NewProjectRepo(db)
 	projectService := service.NewProjectService(projectRepo)
-
-	// Create the handler
 	projectHandler := apphttp.NewProjectHandler(projectService)
 
+	// Create the repository and service for models
+	modelRepo := store.NewModelRepo(db)
+	modelService := service.NewModelService(modelRepo)
+	modelHandler := apphttp.NewModelHandler(modelService)
+
 	// Create the router
-	router := apphttp.NewRouter(projectHandler)
+	router := apphttp.NewRouter(projectHandler, modelHandler)
 
 	// Start the server
 	slog.Info("Server started on :8080")

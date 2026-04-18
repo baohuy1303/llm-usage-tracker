@@ -19,3 +19,12 @@ CREATE TABLE IF NOT EXISTS usage_events (
 
 CREATE INDEX IF NOT EXISTS idx_usage_project_time 
 ON usage_events(project_id, created_at);
+
+
+CREATE TABLE IF NOT EXISTS models (
+  id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+  name                    TEXT NOT NULL UNIQUE,
+  input_per_million_cents  INTEGER NOT NULL,  -- cost per 1M input tokens in cents
+  output_per_million_cents INTEGER NOT NULL,  -- cost per 1M output tokens in cents
+  created_at              DATETIME DEFAULT CURRENT_TIMESTAMP
+);
