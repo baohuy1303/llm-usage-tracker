@@ -13,9 +13,9 @@ func healthz(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
-func NewRouter(ph *ProjectHandler, mh *ModelHandler) http.Handler {
+func NewRouter(ph *ProjectHandler, mh *ModelHandler, uh *UsageHandler) http.Handler {
 	mux := http.NewServeMux()
-	
+
 	mux.HandleFunc("GET /healthz", healthz)
 
 	mux.HandleFunc("GET /projects", ph.ListProjects)
@@ -29,6 +29,10 @@ func NewRouter(ph *ProjectHandler, mh *ModelHandler) http.Handler {
 	mux.HandleFunc("GET /models/{id}", mh.GetModelByID)
 	mux.HandleFunc("PATCH /models/{id}", mh.UpdateModel)
 	mux.HandleFunc("DELETE /models/{id}", mh.DeleteModel)
-	
+
+	mux.HandleFunc("POST /projects/{id}/usage", uh.AddUsage)
+	mux.HandleFunc("GET /projects/{id}/usage/daily", uh.GetDailyStats)
+	mux.HandleFunc("GET /projects/{id}/usage/monthly", uh.GetMonthlyStats)
+
 	return LoggingMiddleware(mux)
 }

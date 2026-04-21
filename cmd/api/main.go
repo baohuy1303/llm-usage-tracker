@@ -1,26 +1,25 @@
 package main
 
-import(
+import (
 	"context"
 	"log/slog"
 	"net/http"
 	"os"
-	"llm-usage-tracker/internal/store"
-	"llm-usage-tracker/internal/service"
+
+	apphttp "llm-usage-tracker/internal/http"
+	"llm-usage-tracker/internal/cache"
 	appredis "llm-usage-tracker/internal/redis"
-	apphttp "llm-usage-tracker/internal/http" // Renamed to avoid conflict with stdlib http
+	"llm-usage-tracker/internal/service"
+	"llm-usage-tracker/internal/store"
 )
 
-func main(){
-	// Get the database path from the environment variable or use the default
+func main() {
 	dbPath := os.Getenv("DATABASE_URL")
 	if dbPath == "" {
-		// Create the data directory if it doesn't exist
 		os.MkdirAll("./data", 0755)
 		dbPath = "./data/app.db"
 	}
 
-	// Initialize the database
 	db, err := store.NewSQLite(dbPath)
 	if err != nil {
 		slog.Error("Failed to initialize database", "err", err)
@@ -28,37 +27,42 @@ func main(){
 	}
 	defer db.Close()
 
-	// Initialize the schema
-	err = store.InitSchema(db)
-	if err != nil {
+	if err := store.InitSchema(db); err != nil {
 		slog.Error("Failed to initialize schema", "err", err)
 		os.Exit(1)
 	}
 
-	// Initialize Redis
 	ctx := context.Background()
-	rdb, err := appredis.NewClient(ctx, "localhost:6379")
-	if err != nil {
-		slog.Error("Failed to initialize Redis", "err", err)
-		os.Exit(1)
-	}
-	defer rdb.Close()
-	slog.Info("Redis connected")
 
-	// Create the repository and service for projects
+	redisAddr := os.Getenv("REDIS_ADDR")
+	if redisAddr == "" {
+		redisAddr = "localhost:6379"
+	}
+
+	var usageCache *cache.UsageCache
+	rdb, err := appredis.NewClient(ctx, redisAddr)
+	if err != nil {
+		slog.Warn("Redis unavailable, running without cache", "err", err)
+	} else {
+		defer rdb.Close()
+		slog.Info("Redis connected")
+		usageCache = cache.NewUsageCache(rdb)
+	}
+
 	projectRepo := store.NewProjectRepo(db)
 	projectService := service.NewProjectService(projectRepo)
 	projectHandler := apphttp.NewProjectHandler(projectService)
 
-	// Create the repository and service for models
 	modelRepo := store.NewModelRepo(db)
 	modelService := service.NewModelService(modelRepo)
 	modelHandler := apphttp.NewModelHandler(modelService)
 
-	// Create the router
-	router := apphttp.NewRouter(projectHandler, modelHandler)
+	usageRepo := store.NewUsageRepo(db)
+	usageService := service.NewUsageService(usageRepo, usageCache)
+	usageHandler := apphttp.NewUsageHandler(usageService)
 
-	// Start the server
+	router := apphttp.NewRouter(projectHandler, modelHandler, usageHandler)
+
 	slog.Info("Server started on :8080")
 	if err := http.ListenAndServe(":8080", router); err != nil {
 		slog.Error("Failed to start server", "err", err)

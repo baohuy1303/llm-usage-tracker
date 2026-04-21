@@ -2,10 +2,9 @@ package http
 
 import (
 	"encoding/json"
-	"log/slog"
 	"net/http"
 	"strconv"
-	"errors"
+
 	"llm-usage-tracker/internal/service"
 )
 
@@ -15,34 +14,6 @@ type ProjectHandler struct {
 
 func NewProjectHandler(service *service.ProjectService) *ProjectHandler {
 	return &ProjectHandler{service: service}
-}
-
-func respondError(w http.ResponseWriter, r *http.Request, status int, message string, err error) {
-	if err != nil {
-		slog.Error("request error", "err", err, "path", r.URL.Path, "method", r.Method)
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(map[string]string{"error": message})
-}
-
-func writeError(w http.ResponseWriter, r *http.Request, err error) {
-    switch {
-    case errors.Is(err, service.ErrDuplicateName):
-        respondError(w, r, http.StatusConflict, "Duplicate name", err)
-
-    case errors.Is(err, service.ErrInvalidName):
-        respondError(w, r, http.StatusBadRequest, "Name cannot be empty", err)
-
-    case errors.Is(err, service.ErrInvalidBudget):
-        respondError(w, r, http.StatusBadRequest, "Budget must be positive", err)
-
-	case errors.Is(err, service.ErrNotFound):
-		respondError(w, r, http.StatusNotFound, "Project not found", err)
-
-    default:
-        respondError(w, r, http.StatusInternalServerError, "Internal server error", err)
-    }
 }
 
 func (h *ProjectHandler) CreateProject(w http.ResponseWriter, r *http.Request) {

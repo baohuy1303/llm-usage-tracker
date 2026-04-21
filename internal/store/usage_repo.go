@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"time"
 )
 
 type UsageRepo struct {
@@ -48,4 +49,31 @@ func (r *UsageRepo) List(ctx context.Context, projectID int64) ([]Usage, error) 
 		usages = append(usages, u)
 	}
 	return usages, nil
+}
+
+func (r *UsageRepo) SumCostByDay(ctx context.Context, projectID int64, date time.Time) (int64, error) {
+	var total int64
+	err := r.db.QueryRowContext(ctx,
+		`SELECT COALESCE(SUM(cost_cents), 0) FROM usage_events WHERE project_id = ? AND DATE(created_at) = DATE(?)`,
+		projectID, date.Format("2006-01-02"),
+	).Scan(&total)
+	return total, err
+}
+
+func (r *UsageRepo) SumCostByMonth(ctx context.Context, projectID int64, month time.Time) (int64, error) {
+	var total int64
+	err := r.db.QueryRowContext(ctx,
+		`SELECT COALESCE(SUM(cost_cents), 0) FROM usage_events WHERE project_id = ? AND strftime('%Y-%m', created_at) = ?`,
+		projectID, month.Format("2006-01"),
+	).Scan(&total)
+	return total, err
+}
+
+func (r *UsageRepo) SumTokensByDay(ctx context.Context, projectID int64, date time.Time) (int64, error) {
+	var total int64
+	err := r.db.QueryRowContext(ctx,
+		`SELECT COALESCE(SUM(tokens_in + tokens_out), 0) FROM usage_events WHERE project_id = ? AND DATE(created_at) = DATE(?)`,
+		projectID, date.Format("2006-01-02"),
+	).Scan(&total)
+	return total, err
 }

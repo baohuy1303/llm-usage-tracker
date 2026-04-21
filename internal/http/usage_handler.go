@@ -1,0 +1,109 @@
+package http
+
+import (
+	"encoding/json"
+	"net/http"
+	"strconv"
+	"time"
+
+	"llm-usage-tracker/internal/service"
+)
+
+type UsageHandler struct {
+	service *service.UsageService
+}
+
+func NewUsageHandler(service *service.UsageService) *UsageHandler {
+	return &UsageHandler{service: service}
+}
+
+func (h *UsageHandler) AddUsage(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("id")
+	projectID, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		respondError(w, r, http.StatusBadRequest, "invalid id", err)
+		return
+	}
+
+	var req struct {
+		Model     string `json:"model"`
+		TokensIn  int64  `json:"tokens_in"`
+		TokensOut int64  `json:"tokens_out"`
+		CostCents int64  `json:"cost_cents"`
+		LatencyMs int64  `json:"latency_ms"`
+		Tag       string `json:"tag"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondError(w, r, http.StatusBadRequest, "Invalid request body", err)
+		return
+	}
+
+	usage, err := h.service.AddUsage(r.Context(), projectID, req.Model, req.TokensIn, req.TokensOut, req.CostCents, req.LatencyMs, req.Tag)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(usage)
+}
+
+// GET /projects/{id}/usage/daily?date=2026-04-21
+func (h *UsageHandler) GetDailyStats(w http.ResponseWriter, r *http.Request) {
+	projectID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		respondError(w, r, http.StatusBadRequest, "invalid id", err)
+		return
+	}
+
+	dateStr := r.URL.Query().Get("date")
+	if dateStr == "" {
+		dateStr = time.Now().UTC().Format("2006-01-02")
+	}
+
+	date, err := time.Parse("2006-01-02", dateStr)
+	if err != nil {
+		respondError(w, r, http.StatusBadRequest, "invalid date, expected YYYY-MM-DD", err)
+		return
+	}
+
+	stats, err := h.service.GetDailyStats(r.Context(), projectID, date)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(stats)
+}
+
+// GET /projects/{id}/usage/monthly?month=2026-04
+func (h *UsageHandler) GetMonthlyStats(w http.ResponseWriter, r *http.Request) {
+	projectID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		respondError(w, r, http.StatusBadRequest, "invalid id", err)
+		return
+	}
+
+	monthStr := r.URL.Query().Get("month")
+	if monthStr == "" {
+		monthStr = time.Now().UTC().Format("2006-01")
+	}
+
+	month, err := time.Parse("2006-01", monthStr)
+	if err != nil {
+		respondError(w, r, http.StatusBadRequest, "invalid month, expected YYYY-MM", err)
+		return
+	}
+
+	stats, err := h.service.GetMonthlyStats(r.Context(), projectID, month)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(stats)
+}

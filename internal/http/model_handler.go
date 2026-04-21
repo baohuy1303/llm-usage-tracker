@@ -2,7 +2,6 @@ package http
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
 	"strconv"
 
@@ -15,25 +14,6 @@ type ModelHandler struct {
 
 func NewModelHandler(service *service.ModelService) *ModelHandler {
 	return &ModelHandler{service: service}
-}
-
-func writeModelError(w http.ResponseWriter, r *http.Request, err error) {
-	switch {
-	case errors.Is(err, service.ErrDuplicateName):
-		respondError(w, r, http.StatusConflict, "Duplicate model name", err)
-
-	case errors.Is(err, service.ErrInvalidName):
-		respondError(w, r, http.StatusBadRequest, "Model name cannot be empty", err)
-
-	case errors.Is(err, service.ErrInvalidPricing):
-		respondError(w, r, http.StatusBadRequest, "Pricing cannot be negative", err)
-
-	case errors.Is(err, service.ErrModelNotFound):
-		respondError(w, r, http.StatusNotFound, "Model not found", err)
-
-	default:
-		respondError(w, r, http.StatusInternalServerError, "Internal server error", err)
-	}
 }
 
 func (h *ModelHandler) CreateModel(w http.ResponseWriter, r *http.Request) {
@@ -50,7 +30,7 @@ func (h *ModelHandler) CreateModel(w http.ResponseWriter, r *http.Request) {
 
 	model, err := h.service.CreateModel(r.Context(), req.Name, req.InputPerMillionCents, req.OutputPerMillionCents)
 	if err != nil {
-		writeModelError(w, r, err)
+		writeError(w, r, err)
 		return
 	}
 
@@ -80,7 +60,7 @@ func (h *ModelHandler) GetModelByID(w http.ResponseWriter, r *http.Request) {
 
 	model, err := h.service.GetModelByID(r.Context(), id)
 	if err != nil {
-		writeModelError(w, r, err)
+		writeError(w, r, err)
 		return
 	}
 
@@ -109,7 +89,7 @@ func (h *ModelHandler) UpdateModel(w http.ResponseWriter, r *http.Request) {
 
 	model, err := h.service.UpdateModel(r.Context(), id, req.Name, req.InputPerMillionCents, req.OutputPerMillionCents)
 	if err != nil {
-		writeModelError(w, r, err)
+		writeError(w, r, err)
 		return
 	}
 
@@ -127,7 +107,7 @@ func (h *ModelHandler) DeleteModel(w http.ResponseWriter, r *http.Request) {
 
 	err = h.service.DeleteModel(r.Context(), id)
 	if err != nil {
-		writeModelError(w, r, err)
+		writeError(w, r, err)
 		return
 	}
 
