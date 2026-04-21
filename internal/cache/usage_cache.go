@@ -67,3 +67,13 @@ func (c *UsageCache) GetMonthlyCost(ctx context.Context, projectID int64, month 
 func (c *UsageCache) GetDailyTokens(ctx context.Context, projectID int64, date time.Time) (int64, error) {
 	return c.client.Get(ctx, dailyTokensKey(projectID, date)).Int64()
 }
+
+// DeleteUsageKeys removes all three counters for the given project and day.
+// Used to invalidate a potentially partial write so reads fall back to SQL.
+func (c *UsageCache) DeleteUsageKeys(ctx context.Context, projectID int64, at time.Time) error {
+	return c.client.Del(ctx,
+		dailyCostKey(projectID, at),
+		monthlyCostKey(projectID, at),
+		dailyTokensKey(projectID, at),
+	).Err()
+}

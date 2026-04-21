@@ -39,7 +39,7 @@ func (r *ProjectRepo) Create(ctx context.Context, p *Project) error {
 
 func (r *ProjectRepo) List() ([]Project, error) {
 	// Open a connection to the database
-    rows, err := r.db.Query("SELECT id, name, budget, created_at FROM projects")
+    rows, err := r.db.Query("SELECT id, name, budget, created_at FROM projects WHERE deleted_at IS NULL")
     if err != nil {
         return nil, err
     }
@@ -63,7 +63,7 @@ func (r *ProjectRepo) GetByID(ctx context.Context, id int64) (*Project, error) {
 	var p Project
 	err := r.db.QueryRowContext(
 		ctx,
-		"SELECT id, name, budget, created_at FROM projects WHERE id = ?",
+		"SELECT id, name, budget, created_at FROM projects WHERE id = ? AND deleted_at IS NULL",
 		id,
 	).Scan(&p.ID, &p.Name, &p.Budget, &p.CreatedAt)
 	if err != nil {
@@ -75,7 +75,7 @@ func (r *ProjectRepo) GetByID(ctx context.Context, id int64) (*Project, error) {
 func (r *ProjectRepo) Update(ctx context.Context, p *Project) error {
 	_, err := r.db.ExecContext(
 		ctx,
-		"UPDATE projects SET name = ?, budget = ? WHERE id = ?",
+		"UPDATE projects SET name = ?, budget = ? WHERE id = ? AND deleted_at IS NULL",
 		p.Name, p.Budget, p.ID,
 	)
 	return err
@@ -84,7 +84,7 @@ func (r *ProjectRepo) Update(ctx context.Context, p *Project) error {
 func (r *ProjectRepo) Delete(ctx context.Context, id int64) error {
 	_, err := r.db.ExecContext(
 		ctx,
-		"DELETE FROM projects WHERE id = ?",
+		"UPDATE projects SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
 		id,
 	)
 	return err

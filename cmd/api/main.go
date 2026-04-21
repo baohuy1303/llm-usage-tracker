@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/joho/godotenv"
 	apphttp "llm-usage-tracker/internal/http"
 	"llm-usage-tracker/internal/cache"
 	appredis "llm-usage-tracker/internal/redis"
@@ -14,6 +15,14 @@ import (
 )
 
 func main() {
+	// .env is optional — in production, variables come from the environment directly.
+	godotenv.Load()
+
+	logLevel := slog.LevelInfo
+	if os.Getenv("LOG_LEVEL") == "debug" {
+		logLevel = slog.LevelDebug
+	}
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: logLevel})))
 	dbPath := os.Getenv("DATABASE_URL")
 	if dbPath == "" {
 		os.MkdirAll("./data", 0755)
@@ -58,7 +67,7 @@ func main() {
 	modelHandler := apphttp.NewModelHandler(modelService)
 
 	usageRepo := store.NewUsageRepo(db)
-	usageService := service.NewUsageService(usageRepo, usageCache)
+	usageService := service.NewUsageService(usageRepo, projectRepo, usageCache)
 	usageHandler := apphttp.NewUsageHandler(usageService)
 
 	router := apphttp.NewRouter(projectHandler, modelHandler, usageHandler)

@@ -17,6 +17,11 @@ func NewSQLite(path string) (*sql.DB, error) {
 
 	db.SetMaxOpenConns(1) // SQLite only supports one connection at a time
 
+	// SQLite disables FK enforcement by default; enable it per connection.
+	if _, err := db.Exec("PRAGMA foreign_keys = ON"); err != nil {
+		return nil, err
+	}
+
 	return db, nil
 }
 

@@ -3,6 +3,11 @@
 ### GET Health Check
 GET {{baseUrl}}/healthz
 
+
+### ----------------------------------------------------
+### PROJECTS
+### ----------------------------------------------------
+
 ### Create Project
 POST {{baseUrl}}/projects/create
 Content-Type: application/json
@@ -21,13 +26,34 @@ Content-Type: application/json
   "budget": 10000
 }
 
+### Error - Create Project with empty name
+POST {{baseUrl}}/projects/create
+Content-Type: application/json
+
+{
+  "name": "",
+  "budget": 10000
+}
+
+### Error - Create Project with invalid budget
+POST {{baseUrl}}/projects/create
+Content-Type: application/json
+
+{
+  "name": "Bad Budget Project",
+  "budget": -100
+}
+
 ### List Projects
 GET {{baseUrl}}/projects
 
 ### Get Project By ID
 GET {{baseUrl}}/projects/1
 
-### Update Project (Partial Update)
+### Error - Get Non-Existent Project
+GET {{baseUrl}}/projects/9999
+
+### Update Project (Partial - budget only)
 PATCH {{baseUrl}}/projects/1
 Content-Type: application/json
 
@@ -35,7 +61,7 @@ Content-Type: application/json
   "budget": 75000
 }
 
-### Update Project (Full Update)
+### Update Project (Full)
 PATCH {{baseUrl}}/projects/1
 Content-Type: application/json
 
@@ -68,10 +94,33 @@ Content-Type: application/json
   "output_per_million_cents": 200
 }
 
+### Error - Create Model with duplicate name
+POST {{baseUrl}}/models
+Content-Type: application/json
+
+{
+  "name": "custom-model-x",
+  "input_per_million_cents": 50,
+  "output_per_million_cents": 200
+}
+
+### Error - Create Model with negative pricing
+POST {{baseUrl}}/models
+Content-Type: application/json
+
+{
+  "name": "bad-price-model",
+  "input_per_million_cents": -10,
+  "output_per_million_cents": 200
+}
+
 ### Get Model By ID
 GET {{baseUrl}}/models/1
 
-### Update Model (Partial Update)
+### Error - Get Non-Existent Model
+GET {{baseUrl}}/models/9999
+
+### Update Model (Partial - output pricing only)
 PATCH {{baseUrl}}/models/10
 Content-Type: application/json
 
@@ -82,3 +131,100 @@ Content-Type: application/json
 ### Delete Model
 DELETE {{baseUrl}}/models/10
 
+
+### ----------------------------------------------------
+### USAGE
+### ----------------------------------------------------
+
+### Add Usage (writes to SQLite + increments Redis counters)
+POST {{baseUrl}}/projects/1/usage
+Content-Type: application/json
+
+{
+  "model": "claude-sonnet-4-20250514",
+  "tokens_in": 1000,
+  "tokens_out": 500,
+  "cost_cents": 450,
+  "latency_ms": 1200,
+  "tag": "chat"
+}
+
+### Add Usage - second event same day (Redis INCRBY should accumulate)
+POST {{baseUrl}}/projects/1/usage
+Content-Type: application/json
+
+{
+  "model": "gpt-4o",
+  "tokens_in": 2000,
+  "tokens_out": 800,
+  "cost_cents": 1300,
+  "latency_ms": 950,
+  "tag": "summary"
+}
+
+### Add Usage - different tag
+POST {{baseUrl}}/projects/1/usage
+Content-Type: application/json
+
+{
+  "model": "gemini-2.5-flash",
+  "tokens_in": 500,
+  "tokens_out": 200,
+  "cost_cents": 52,
+  "latency_ms": 400,
+  "tag": "embedding"
+}
+
+### Error - Add Usage to non-existent project
+POST {{baseUrl}}/projects/9999/usage
+Content-Type: application/json
+
+{
+  "model": "gpt-4o-mini",
+  "tokens_in": 100,
+  "tokens_out": 50,
+  "cost_cents": 10,
+  "latency_ms": 200,
+  "tag": "test"
+}
+
+### Error - Add Usage with invalid project ID
+POST {{baseUrl}}/projects/abc/usage
+Content-Type: application/json
+
+{
+  "model": "gpt-4o-mini",
+  "tokens_in": 100,
+  "tokens_out": 50,
+  "cost_cents": 10,
+  "latency_ms": 200,
+  "tag": "test"
+}
+
+### ----------------------------------------------------
+### USAGE STATS (Redis cache → SQL fallback)
+### ----------------------------------------------------
+
+### Get Daily Stats - today (reads from Redis cache if warm)
+GET {{baseUrl}}/projects/1/usage/daily
+
+### Get Daily Stats - specific date
+GET {{baseUrl}}/projects/1/usage/daily?date=2026-04-21
+
+### Error - Get Daily Stats with invalid date format
+GET {{baseUrl}}/projects/1/usage/daily?date=21-04-2026
+
+### Get Monthly Stats - current month (reads from Redis cache if warm)
+GET {{baseUrl}}/projects/1/usage/monthly
+
+### Get Monthly Stats - specific month
+GET {{baseUrl}}/projects/1/usage/monthly?month=2026-04
+
+### Error - Get Monthly Stats with invalid month format
+GET {{baseUrl}}/projects/1/usage/monthly?month=2026/04
+
+### Get Stats for project with no usage (should return zeros)
+GET {{baseUrl}}/projects/2/usage/daily
+
+### Get Stats for non-existent project (returns zeros, not an error)
+GET {{baseUrl}}/projects/9999/usage/daily
