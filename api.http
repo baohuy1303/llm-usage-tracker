@@ -363,3 +363,38 @@ GET {{baseUrl}}/usage/summary?from=2026-04-21&to=2026-04-01
 
 ### Error - Usage Summary with invalid date
 GET {{baseUrl}}/usage/summary?from=not-a-date&to=2026-04-21
+
+
+### ----------------------------------------------------
+### USAGE EVENTS (cursor-paginated lists of raw events)
+### ----------------------------------------------------
+
+### Project events - first page, all-time (30 per page default)
+GET {{baseUrl}}/projects/1/usage/events
+
+### Project events - explicit date range + smaller page
+GET {{baseUrl}}/projects/1/usage/events?from=2026-04-01&to=2026-04-30&limit=10
+
+### Project events - next page (paste next_cursor value from previous response)
+GET {{baseUrl}}/projects/1/usage/events?cursor=<paste-here>
+
+### All projects - first page, all-time
+GET {{baseUrl}}/usage/events
+
+### All projects - scoped to today with small page
+GET {{baseUrl}}/usage/events?from=2026-04-21&to=2026-04-21&limit=5
+
+### All projects - next page
+GET {{baseUrl}}/usage/events?cursor=<paste-here>
+
+### Events - limit boundary clamping (request 500, gets capped at 100 per server policy)
+GET {{baseUrl}}/usage/events?limit=500
+
+### Error - invalid cursor
+GET {{baseUrl}}/usage/events?cursor=not-a-real-cursor
+
+### Error - invalid limit
+GET {{baseUrl}}/usage/events?limit=abc
+
+### Error - from > to
+GET {{baseUrl}}/usage/events?from=2026-04-21&to=2026-04-01

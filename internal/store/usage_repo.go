@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"strings"
 	"time"
 )
 
@@ -31,14 +32,47 @@ func (r *UsageRepo) Create(ctx context.Context, usage *Usage) error {
 	return err
 }
 
-func (r *UsageRepo) List(ctx context.Context, projectID int64) ([]Usage, error) {
-	query := `
-		SELECT id, project_id, model, tokens_in, tokens_out, cost_cents, latency_ms, tag, created_at
-		FROM usage_events
-		WHERE project_id = ?
-		ORDER BY created_at DESC
-	`
-	rows, err := r.db.QueryContext(ctx, query, projectID)
+// ListEventsFilter bundles the optional filters for ListEvents.
+// Any nil field means "no filter". AfterTime+AfterID together form a keyset cursor
+// for pagination — the next page starts strictly after (AfterTime, AfterID) in
+// (created_at DESC, id DESC) order.
+type ListEventsFilter struct {
+	ProjectID *int64
+	From      *time.Time
+	To        *time.Time
+	AfterTime *time.Time
+	AfterID   *int64
+	Limit     int
+}
+
+func (r *UsageRepo) ListEvents(ctx context.Context, f ListEventsFilter) ([]Usage, error) {
+	var q strings.Builder
+	q.WriteString(`SELECT id, project_id, model, tokens_in, tokens_out, cost_cents, latency_ms, tag, created_at
+		FROM usage_events WHERE 1=1`)
+
+	args := []any{}
+	if f.ProjectID != nil {
+		q.WriteString(" AND project_id = ?")
+		args = append(args, *f.ProjectID)
+	}
+	if f.From != nil {
+		q.WriteString(" AND created_at >= ?")
+		args = append(args, f.From.UTC().Format(sqliteTimeFormat))
+	}
+	if f.To != nil {
+		q.WriteString(" AND created_at <= ?")
+		args = append(args, f.To.UTC().Format(sqliteTimeFormat))
+	}
+	if f.AfterTime != nil && f.AfterID != nil {
+		// Keyset predicate: strictly past (AfterTime, AfterID) in DESC order.
+		q.WriteString(" AND (created_at < ? OR (created_at = ? AND id < ?))")
+		t := f.AfterTime.UTC().Format(sqliteTimeFormat)
+		args = append(args, t, t, *f.AfterID)
+	}
+	q.WriteString(" ORDER BY created_at DESC, id DESC LIMIT ?")
+	args = append(args, f.Limit)
+
+	rows, err := r.db.QueryContext(ctx, q.String(), args...)
 	if err != nil {
 		return nil, err
 	}

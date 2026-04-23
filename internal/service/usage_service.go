@@ -3,8 +3,12 @@ package service
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"errors"
+	"fmt"
 	"log/slog"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -66,6 +70,45 @@ type SummaryStats struct {
 	TotalTokensOut   int64               `json:"total_tokens_out"`
 	TotalEventCount  int64               `json:"total_event_count"`
 	Projects         []ProjectSummaryRow `json:"projects"`
+}
+
+const (
+	eventsDefaultLimit = 30
+	eventsMaxLimit     = 100
+)
+
+type EventsPage struct {
+	Events     []store.Usage `json:"events"`
+	NextCursor string        `json:"next_cursor,omitempty"`
+	HasMore    bool          `json:"has_more"`
+}
+
+// encodeCursor packs (created_at, id) into an opaque base64 string.
+func encodeCursor(t time.Time, id int64) string {
+	raw := fmt.Sprintf("%s|%d", t.UTC().Format("2006-01-02 15:04:05"), id)
+	return base64.URLEncoding.EncodeToString([]byte(raw))
+}
+
+// decodeCursor unpacks an opaque cursor back into (created_at, id).
+// Returns an error if the cursor is malformed.
+func decodeCursor(s string) (time.Time, int64, error) {
+	raw, err := base64.URLEncoding.DecodeString(s)
+	if err != nil {
+		return time.Time{}, 0, fmt.Errorf("invalid cursor encoding: %w", err)
+	}
+	parts := strings.SplitN(string(raw), "|", 2)
+	if len(parts) != 2 {
+		return time.Time{}, 0, errors.New("invalid cursor format")
+	}
+	t, err := time.Parse("2006-01-02 15:04:05", parts[0])
+	if err != nil {
+		return time.Time{}, 0, fmt.Errorf("invalid cursor time: %w", err)
+	}
+	id, err := strconv.ParseInt(parts[1], 10, 64)
+	if err != nil {
+		return time.Time{}, 0, fmt.Errorf("invalid cursor id: %w", err)
+	}
+	return t, id, nil
 }
 
 // BudgetWindow is the spend/budget/percent/flag for one window (daily, monthly, or total).
@@ -345,6 +388,54 @@ func (s *UsageService) GetProjectRangeStats(ctx context.Context, projectID int64
 		TokensOut:  agg.TokensOut,
 		EventCount: agg.EventCount,
 	}, nil
+}
+
+// ListEvents returns a page of raw usage events ordered newest-first.
+// All params except limit are optional:
+//   - projectID nil = across all projects
+//   - from/to nil = unbounded
+//   - cursor empty = first page
+// Limit is clamped to [1, eventsMaxLimit]; passing 0 uses the default.
+func (s *UsageService) ListEvents(ctx context.Context, projectID *int64, from, to *time.Time, cursor string, limit int) (*EventsPage, error) {
+	if limit <= 0 {
+		limit = eventsDefaultLimit
+	}
+	if limit > eventsMaxLimit {
+		limit = eventsMaxLimit
+	}
+
+	filter := store.ListEventsFilter{
+		ProjectID: projectID,
+		From:      from,
+		To:        to,
+		Limit:     limit + 1, // fetch one extra to detect has_more
+	}
+
+	if cursor != "" {
+		t, id, err := decodeCursor(cursor)
+		if err != nil {
+			return nil, err
+		}
+		filter.AfterTime = &t
+		filter.AfterID = &id
+	}
+
+	rows, err := s.repo.ListEvents(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	page := &EventsPage{Events: rows}
+	if len(rows) > limit {
+		page.Events = rows[:limit]
+		page.HasMore = true
+		last := page.Events[len(page.Events)-1]
+		page.NextCursor = encodeCursor(last.CreatedAt, last.ID)
+	}
+	if page.Events == nil {
+		page.Events = []store.Usage{}
+	}
+	return page, nil
 }
 
 func (s *UsageService) GetAllProjectsSummary(ctx context.Context, from, to time.Time) (*SummaryStats, error) {

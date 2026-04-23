@@ -176,6 +176,79 @@ func (h *UsageHandler) GetProjectRangeStats(w http.ResponseWriter, r *http.Reque
 	json.NewEncoder(w).Encode(stats)
 }
 
+// parseOptionalTimeRange reads ?from= and ?to= if present. Unlike parseTimeRange,
+// missing params are legal — the corresponding pointer is returned as nil.
+// On malformed input it writes a 400 and returns ok=false.
+func parseOptionalTimeRange(w http.ResponseWriter, r *http.Request) (from, to *time.Time, ok bool) {
+	if s := r.URL.Query().Get("from"); s != "" {
+		t, err := parseFlexTime(s, false)
+		if err != nil {
+			respondError(w, r, http.StatusBadRequest, "invalid from, expected YYYY-MM-DD or RFC3339", err)
+			return
+		}
+		from = &t
+	}
+	if s := r.URL.Query().Get("to"); s != "" {
+		t, err := parseFlexTime(s, true)
+		if err != nil {
+			respondError(w, r, http.StatusBadRequest, "invalid to, expected YYYY-MM-DD or RFC3339", err)
+			return
+		}
+		to = &t
+	}
+	if from != nil && to != nil && from.After(*to) {
+		respondError(w, r, http.StatusBadRequest, "from must be on or before to", nil)
+		return
+	}
+	ok = true
+	return
+}
+
+// listEvents handles both /projects/{id}/usage/events (scoped) and /usage/events (all-projects).
+// projectID is nil when called from the all-projects route.
+func (h *UsageHandler) listEvents(w http.ResponseWriter, r *http.Request, projectID *int64) {
+	from, to, ok := parseOptionalTimeRange(w, r)
+	if !ok {
+		return
+	}
+
+	limit := 0
+	if s := r.URL.Query().Get("limit"); s != "" {
+		n, err := strconv.Atoi(s)
+		if err != nil || n <= 0 {
+			respondError(w, r, http.StatusBadRequest, "invalid limit, expected positive integer", err)
+			return
+		}
+		limit = n
+	}
+
+	cursor := r.URL.Query().Get("cursor")
+
+	page, err := h.service.ListEvents(r.Context(), projectID, from, to, cursor, limit)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(page)
+}
+
+// GET /projects/{id}/usage/events?from=&to=&limit=&cursor=
+func (h *UsageHandler) ListProjectEvents(w http.ResponseWriter, r *http.Request) {
+	projectID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		respondError(w, r, http.StatusBadRequest, "invalid id", err)
+		return
+	}
+	h.listEvents(w, r, &projectID)
+}
+
+// GET /usage/events?from=&to=&limit=&cursor=
+func (h *UsageHandler) ListAllEvents(w http.ResponseWriter, r *http.Request) {
+	h.listEvents(w, r, nil)
+}
+
 // GET /usage/summary?from=2026-04-01&to=2026-04-21
 func (h *UsageHandler) GetUsageSummary(w http.ResponseWriter, r *http.Request) {
 	from, to, ok := parseTimeRange(w, r)
