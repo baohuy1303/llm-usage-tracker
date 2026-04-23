@@ -28,4 +28,16 @@ type Model struct {
 	InputPerMillionCents  int64     `json:"input_per_million_cents"`
 	OutputPerMillionCents int64     `json:"output_per_million_cents"`
 	CreatedAt             time.Time `json:"created_at"`
+}
+
+type UsageAggregate struct {
+	CostCents  int64
+	Tokens     int64
+	EventCount int64
+}
+
+type ProjectUsageAggregate struct {
+	ProjectID   int64
+	ProjectName string
+	UsageAggregate
 }

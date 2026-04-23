@@ -77,3 +77,52 @@ func (r *UsageRepo) SumTokensByDay(ctx context.Context, projectID int64, date ti
 	).Scan(&total)
 	return total, err
 }
+
+func (r *UsageRepo) SumUsageByRange(ctx context.Context, projectID int64, from, to time.Time) (*UsageAggregate, error) {
+	var agg UsageAggregate
+	err := r.db.QueryRowContext(ctx,
+		`SELECT
+			COALESCE(SUM(cost_cents), 0),
+			COALESCE(SUM(tokens_in + tokens_out), 0),
+			COUNT(*)
+		 FROM usage_events
+		 WHERE project_id = ?
+		   AND DATE(created_at) BETWEEN DATE(?) AND DATE(?)`,
+		projectID, from.Format("2006-01-02"), to.Format("2006-01-02"),
+	).Scan(&agg.CostCents, &agg.Tokens, &agg.EventCount)
+	if err != nil {
+		return nil, err
+	}
+	return &agg, nil
+}
+
+func (r *UsageRepo) SumUsageByRangeAllProjects(ctx context.Context, from, to time.Time) ([]ProjectUsageAggregate, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT
+			p.id,
+			p.name,
+			SUM(u.cost_cents),
+			SUM(u.tokens_in + u.tokens_out),
+			COUNT(u.id)
+		 FROM usage_events u
+		 JOIN projects p ON p.id = u.project_id
+		 WHERE DATE(u.created_at) BETWEEN DATE(?) AND DATE(?)
+		 GROUP BY p.id, p.name
+		 ORDER BY SUM(u.cost_cents) DESC`,
+		from.Format("2006-01-02"), to.Format("2006-01-02"),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []ProjectUsageAggregate
+	for rows.Next() {
+		var p ProjectUsageAggregate
+		if err := rows.Scan(&p.ProjectID, &p.ProjectName, &p.CostCents, &p.Tokens, &p.EventCount); err != nil {
+			return nil, err
+		}
+		result = append(result, p)
+	}
+	return result, nil
+}

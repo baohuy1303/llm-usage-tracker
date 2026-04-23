@@ -33,6 +33,8 @@ func NewRouter(ph *ProjectHandler, mh *ModelHandler, uh *UsageHandler) http.Hand
 	mux.HandleFunc("POST /projects/{id}/usage", uh.AddUsage)
 	mux.HandleFunc("GET /projects/{id}/usage/daily", uh.GetDailyStats)
 	mux.HandleFunc("GET /projects/{id}/usage/monthly", uh.GetMonthlyStats)
+	mux.HandleFunc("GET /projects/{id}/usage/range", uh.GetProjectRangeStats)
+	mux.HandleFunc("GET /usage/summary", uh.GetUsageSummary)
 
 	return LoggingMiddleware(mux)
 }

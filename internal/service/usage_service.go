@@ -15,11 +15,12 @@ import (
 type UsageService struct {
 	repo        *store.UsageRepo
 	projectRepo *store.ProjectRepo
+	modelRepo   *store.ModelRepo
 	usageCache  *cache.UsageCache
 }
 
-func NewUsageService(repo *store.UsageRepo, projectRepo *store.ProjectRepo, usageCache *cache.UsageCache) *UsageService {
-	return &UsageService{repo: repo, projectRepo: projectRepo, usageCache: usageCache}
+func NewUsageService(repo *store.UsageRepo, projectRepo *store.ProjectRepo, modelRepo *store.ModelRepo, usageCache *cache.UsageCache) *UsageService {
+	return &UsageService{repo: repo, projectRepo: projectRepo, modelRepo: modelRepo, usageCache: usageCache}
 }
 
 type DailyStats struct {
@@ -29,6 +30,31 @@ type DailyStats struct {
 
 type MonthlyStats struct {
 	CostCents int64 `json:"cost_cents"`
+}
+
+type RangeStats struct {
+	From       string `json:"from"`
+	To         string `json:"to"`
+	CostCents  int64  `json:"cost_cents"`
+	Tokens     int64  `json:"tokens"`
+	EventCount int64  `json:"event_count"`
+}
+
+type ProjectSummaryRow struct {
+	ProjectID   int64  `json:"project_id"`
+	ProjectName string `json:"project_name"`
+	CostCents   int64  `json:"cost_cents"`
+	Tokens      int64  `json:"tokens"`
+	EventCount  int64  `json:"event_count"`
+}
+
+type SummaryStats struct {
+	From            string              `json:"from"`
+	To              string              `json:"to"`
+	TotalCostCents  int64               `json:"total_cost_cents"`
+	TotalTokens     int64               `json:"total_tokens"`
+	TotalEventCount int64               `json:"total_event_count"`
+	Projects        []ProjectSummaryRow `json:"projects"`
 }
 
 // cacheGet calls fn and returns (value, true) on a cache hit, or (zero, false) on miss or error.
@@ -48,24 +74,34 @@ func cacheGet[T any](fn func() (T, error), op string) (T, bool) {
 	return zero, false
 }
 
-func (s *UsageService) AddUsage(ctx context.Context, projectID int64, model string,
-	tokensIn, tokensOut, costCents, latencyMs int64, tag string) (*store.Usage, error) {
-
-	usage := &store.Usage{
-		ProjectID: projectID,
-		Model:     model,
-		TokensIn:  tokensIn,
-		TokensOut: tokensOut,
-		CostCents: costCents,
-		LatencyMs: latencyMs,
-		Tag:       tag,
-	}
+func (s *UsageService) AddUsage(ctx context.Context, projectID int64, modelName string,
+	tokensIn, tokensOut, latencyMs int64, tag string) (*store.Usage, error) {
 
 	if _, err := s.projectRepo.GetByID(ctx, projectID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
 		return nil, err
+	}
+
+	model, err := s.modelRepo.GetByName(ctx, modelName)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrModelNotFound
+		}
+		return nil, err
+	}
+
+	costCents := (tokensIn*model.InputPerMillionCents + tokensOut*model.OutputPerMillionCents) / 1_000_000
+
+	usage := &store.Usage{
+		ProjectID: projectID,
+		Model:     modelName,
+		TokensIn:  tokensIn,
+		TokensOut: tokensOut,
+		CostCents: costCents,
+		LatencyMs: latencyMs,
+		Tag:       tag,
 	}
 
 	if err := s.repo.Create(ctx, usage); err != nil {
@@ -118,4 +154,49 @@ func (s *UsageService) GetMonthlyStats(ctx context.Context, projectID int64, mon
 		return nil, err
 	}
 	return &MonthlyStats{CostCents: cost}, nil
+}
+
+func (s *UsageService) GetProjectRangeStats(ctx context.Context, projectID int64, from, to time.Time) (*RangeStats, error) {
+	agg, err := s.repo.SumUsageByRange(ctx, projectID, from, to)
+	if err != nil {
+		return nil, err
+	}
+	return &RangeStats{
+		From:       from.Format("2006-01-02"),
+		To:         to.Format("2006-01-02"),
+		CostCents:  agg.CostCents,
+		Tokens:     agg.Tokens,
+		EventCount: agg.EventCount,
+	}, nil
+}
+
+func (s *UsageService) GetAllProjectsSummary(ctx context.Context, from, to time.Time) (*SummaryStats, error) {
+	rows, err := s.repo.SumUsageByRangeAllProjects(ctx, from, to)
+	if err != nil {
+		return nil, err
+	}
+
+	projects := make([]ProjectSummaryRow, 0, len(rows))
+	var totalCost, totalTokens, totalCount int64
+	for _, r := range rows {
+		projects = append(projects, ProjectSummaryRow{
+			ProjectID:   r.ProjectID,
+			ProjectName: r.ProjectName,
+			CostCents:   r.CostCents,
+			Tokens:      r.Tokens,
+			EventCount:  r.EventCount,
+		})
+		totalCost += r.CostCents
+		totalTokens += r.Tokens
+		totalCount += r.EventCount
+	}
+
+	return &SummaryStats{
+		From:            from.Format("2006-01-02"),
+		To:              to.Format("2006-01-02"),
+		TotalCostCents:  totalCost,
+		TotalTokens:     totalTokens,
+		TotalEventCount: totalCount,
+		Projects:        projects,
+	}, nil
 }

@@ -60,6 +60,19 @@ func (r *ModelRepo) GetByID(ctx context.Context, id int64) (*Model, error) {
 	return &m, nil
 }
 
+func (r *ModelRepo) GetByName(ctx context.Context, name string) (*Model, error) {
+	var m Model
+	err := r.db.QueryRowContext(
+		ctx,
+		"SELECT id, name, input_per_million_cents, output_per_million_cents, created_at FROM models WHERE name = ?",
+		name,
+	).Scan(&m.ID, &m.Name, &m.InputPerMillionCents, &m.OutputPerMillionCents, &m.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &m, nil
+}
+
 func (r *ModelRepo) Update(ctx context.Context, m *Model) error {
 	_, err := r.db.ExecContext(
 		ctx,

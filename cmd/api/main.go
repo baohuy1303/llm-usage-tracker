@@ -67,7 +67,7 @@ func main() {
 	modelHandler := apphttp.NewModelHandler(modelService)
 
 	usageRepo := store.NewUsageRepo(db)
-	usageService := service.NewUsageService(usageRepo, projectRepo, usageCache)
+	usageService := service.NewUsageService(usageRepo, projectRepo, modelRepo, usageCache)
 	usageHandler := apphttp.NewUsageHandler(usageService)
 
 	router := apphttp.NewRouter(projectHandler, modelHandler, usageHandler)

@@ -29,7 +29,6 @@ func (h *UsageHandler) AddUsage(w http.ResponseWriter, r *http.Request) {
 		Model     string `json:"model"`
 		TokensIn  int64  `json:"tokens_in"`
 		TokensOut int64  `json:"tokens_out"`
-		CostCents int64  `json:"cost_cents"`
 		LatencyMs int64  `json:"latency_ms"`
 		Tag       string `json:"tag"`
 	}
@@ -39,7 +38,7 @@ func (h *UsageHandler) AddUsage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	usage, err := h.service.AddUsage(r.Context(), projectID, req.Model, req.TokensIn, req.TokensOut, req.CostCents, req.LatencyMs, req.Tag)
+	usage, err := h.service.AddUsage(r.Context(), projectID, req.Model, req.TokensIn, req.TokensOut, req.LatencyMs, req.Tag)
 	if err != nil {
 		writeError(w, r, err)
 		return
@@ -99,6 +98,75 @@ func (h *UsageHandler) GetMonthlyStats(w http.ResponseWriter, r *http.Request) {
 	}
 
 	stats, err := h.service.GetMonthlyStats(r.Context(), projectID, month)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(stats)
+}
+
+// parseDateRange pulls required ?from=YYYY-MM-DD&to=YYYY-MM-DD params and validates from <= to.
+// On any error it writes a 400 to the response and returns ok=false.
+func parseDateRange(w http.ResponseWriter, r *http.Request) (from, to time.Time, ok bool) {
+	fromStr := r.URL.Query().Get("from")
+	toStr := r.URL.Query().Get("to")
+	if fromStr == "" || toStr == "" {
+		respondError(w, r, http.StatusBadRequest, "from and to are required (YYYY-MM-DD)", nil)
+		return
+	}
+
+	var err error
+	from, err = time.Parse("2006-01-02", fromStr)
+	if err != nil {
+		respondError(w, r, http.StatusBadRequest, "invalid from, expected YYYY-MM-DD", err)
+		return
+	}
+	to, err = time.Parse("2006-01-02", toStr)
+	if err != nil {
+		respondError(w, r, http.StatusBadRequest, "invalid to, expected YYYY-MM-DD", err)
+		return
+	}
+	if from.After(to) {
+		respondError(w, r, http.StatusBadRequest, "from must be on or before to", nil)
+		return
+	}
+	ok = true
+	return
+}
+
+// GET /projects/{id}/usage/range?from=2026-04-01&to=2026-04-21
+func (h *UsageHandler) GetProjectRangeStats(w http.ResponseWriter, r *http.Request) {
+	projectID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		respondError(w, r, http.StatusBadRequest, "invalid id", err)
+		return
+	}
+
+	from, to, ok := parseDateRange(w, r)
+	if !ok {
+		return
+	}
+
+	stats, err := h.service.GetProjectRangeStats(r.Context(), projectID, from, to)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(stats)
+}
+
+// GET /usage/summary?from=2026-04-01&to=2026-04-21
+func (h *UsageHandler) GetUsageSummary(w http.ResponseWriter, r *http.Request) {
+	from, to, ok := parseDateRange(w, r)
+	if !ok {
+		return
+	}
+
+	stats, err := h.service.GetAllProjectsSummary(r.Context(), from, to)
 	if err != nil {
 		writeError(w, r, err)
 		return

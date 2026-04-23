@@ -136,7 +136,7 @@ DELETE {{baseUrl}}/models/10
 ### USAGE
 ### ----------------------------------------------------
 
-### Add Usage (writes to SQLite + increments Redis counters)
+### Add Usage (cost_cents is computed server-side from model pricing)
 POST {{baseUrl}}/projects/1/usage
 Content-Type: application/json
 
@@ -144,7 +144,6 @@ Content-Type: application/json
   "model": "claude-sonnet-4-20250514",
   "tokens_in": 1000,
   "tokens_out": 500,
-  "cost_cents": 450,
   "latency_ms": 1200,
   "tag": "chat"
 }
@@ -157,7 +156,6 @@ Content-Type: application/json
   "model": "gpt-4o",
   "tokens_in": 2000,
   "tokens_out": 800,
-  "cost_cents": 1300,
   "latency_ms": 950,
   "tag": "summary"
 }
@@ -170,9 +168,20 @@ Content-Type: application/json
   "model": "gemini-2.5-flash",
   "tokens_in": 500,
   "tokens_out": 200,
-  "cost_cents": 52,
   "latency_ms": 400,
   "tag": "embedding"
+}
+
+### Error - Add Usage with unknown model
+POST {{baseUrl}}/projects/1/usage
+Content-Type: application/json
+
+{
+  "model": "not-a-real-model",
+  "tokens_in": 100,
+  "tokens_out": 50,
+  "latency_ms": 200,
+  "tag": "test"
 }
 
 ### Error - Add Usage to non-existent project
@@ -183,7 +192,6 @@ Content-Type: application/json
   "model": "gpt-4o-mini",
   "tokens_in": 100,
   "tokens_out": 50,
-  "cost_cents": 10,
   "latency_ms": 200,
   "tag": "test"
 }
@@ -196,7 +204,6 @@ Content-Type: application/json
   "model": "gpt-4o-mini",
   "tokens_in": 100,
   "tokens_out": 50,
-  "cost_cents": 10,
   "latency_ms": 200,
   "tag": "test"
 }
@@ -228,3 +235,51 @@ GET {{baseUrl}}/projects/2/usage/daily
 
 ### Get Stats for non-existent project (returns zeros, not an error)
 GET {{baseUrl}}/projects/9999/usage/daily
+
+
+### ----------------------------------------------------
+### USAGE RANGE & SUMMARY (SQL-only, no cache)
+### ----------------------------------------------------
+
+### Project Range - single project, arbitrary date window
+GET {{baseUrl}}/projects/1/usage/range?from=2026-04-01&to=2026-04-21
+
+### Project Range - same from/to (equivalent to daily stats)
+GET {{baseUrl}}/projects/1/usage/range?from=2026-04-21&to=2026-04-21
+
+### Project Range - no usage in window (returns zeros)
+GET {{baseUrl}}/projects/1/usage/range?from=2020-01-01&to=2020-01-31
+
+### Project Range - non-existent project (returns zeros, not an error)
+GET {{baseUrl}}/projects/9999/usage/range?from=2026-04-01&to=2026-04-21
+
+### Error - Project Range missing from
+GET {{baseUrl}}/projects/1/usage/range?to=2026-04-21
+
+### Error - Project Range missing to
+GET {{baseUrl}}/projects/1/usage/range?from=2026-04-01
+
+### Error - Project Range with from > to
+GET {{baseUrl}}/projects/1/usage/range?from=2026-04-21&to=2026-04-01
+
+### Error - Project Range with invalid date format
+GET {{baseUrl}}/projects/1/usage/range?from=04-01-2026&to=04-21-2026
+
+
+### Usage Summary - all projects with per-project breakdown + totals
+GET {{baseUrl}}/usage/summary?from=2026-04-01&to=2026-04-21
+
+### Usage Summary - single day
+GET {{baseUrl}}/usage/summary?from=2026-04-21&to=2026-04-21
+
+### Usage Summary - empty window (no usage → empty projects array, zero totals)
+GET {{baseUrl}}/usage/summary?from=2020-01-01&to=2020-01-31
+
+### Error - Usage Summary missing both params
+GET {{baseUrl}}/usage/summary
+
+### Error - Usage Summary with from > to
+GET {{baseUrl}}/usage/summary?from=2026-04-21&to=2026-04-01
+
+### Error - Usage Summary with invalid date
+GET {{baseUrl}}/usage/summary?from=not-a-date&to=2026-04-21
