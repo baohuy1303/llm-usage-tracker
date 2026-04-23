@@ -57,6 +57,29 @@ type SummaryStats struct {
 	Projects        []ProjectSummaryRow `json:"projects"`
 }
 
+// BudgetWindow is the spend/budget/percent/flag for one window (daily, monthly, or total).
+type BudgetWindow struct {
+	SpentCents  int64   `json:"spent_cents"`
+	BudgetCents int64   `json:"budget_cents"`
+	Percent     float64 `json:"percent"`
+	OverBudget  bool    `json:"over_budget"`
+}
+
+// BudgetStatus groups the three budget windows. Any window is nil when the
+// project has no budget set for it.
+type BudgetStatus struct {
+	Daily   *BudgetWindow `json:"daily,omitempty"`
+	Monthly *BudgetWindow `json:"monthly,omitempty"`
+	Total   *BudgetWindow `json:"total,omitempty"`
+}
+
+// UsageResult is the response from AddUsage: the stored usage event plus
+// the post-write budget status. BudgetStatus is nil if Redis was unavailable.
+type UsageResult struct {
+	*store.Usage
+	BudgetStatus *BudgetStatus `json:"budget_status,omitempty"`
+}
+
 // cacheGet calls fn and returns (value, true) on a cache hit, or (zero, false) on miss or error.
 // Hits, misses, and real errors are all logged so call sites don't have to.
 func cacheGet[T any](fn func() (T, error), op string) (T, bool) {
@@ -74,10 +97,38 @@ func cacheGet[T any](fn func() (T, error), op string) (T, bool) {
 	return zero, false
 }
 
-func (s *UsageService) AddUsage(ctx context.Context, projectID int64, modelName string,
-	tokensIn, tokensOut, latencyMs int64, tag string) (*store.Usage, error) {
+// budgetSentinel returns the int64 value for the Lua script: the budget if set,
+// or -1 to signal "no enforcement for this window".
+func budgetSentinel(b *int64) int64 {
+	if b == nil {
+		return -1
+	}
+	return *b
+}
 
-	if _, err := s.projectRepo.GetByID(ctx, projectID); err != nil {
+// percent computes spend/budget*100, rounded to 1 decimal place. Returns 0 if budget is 0.
+func percent(spent, budget int64) float64 {
+	if budget <= 0 {
+		return 0
+	}
+	p := float64(spent) / float64(budget) * 100
+	return float64(int64(p*10)) / 10
+}
+
+func buildWindow(spent, budget int64) *BudgetWindow {
+	return &BudgetWindow{
+		SpentCents:  spent,
+		BudgetCents: budget,
+		Percent:     percent(spent, budget),
+		OverBudget:  spent > budget,
+	}
+}
+
+func (s *UsageService) AddUsage(ctx context.Context, projectID int64, modelName string,
+	tokensIn, tokensOut, latencyMs int64, tag string) (*UsageResult, error) {
+
+	project, err := s.projectRepo.GetByID(ctx, projectID)
+	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
@@ -108,19 +159,112 @@ func (s *UsageService) AddUsage(ctx context.Context, projectID int64, modelName 
 		return nil, err
 	}
 
+	result := &UsageResult{Usage: usage}
+
 	if s.usageCache != nil {
 		now := time.Now().UTC()
-		if err := s.usageCache.IncrUsage(ctx, projectID, costCents, tokensIn+tokensOut, now); err != nil {
+		snap, err := s.usageCache.IncrUsageWithBudget(
+			ctx,
+			projectID,
+			costCents,
+			tokensIn+tokensOut,
+			budgetSentinel(project.DailyBudgetCents),
+			budgetSentinel(project.MonthlyBudgetCents),
+			now,
+		)
+		if err != nil {
 			slog.Warn("redis incr failed, invalidating cache keys", "err", err, "project_id", projectID)
 			if derr := s.usageCache.DeleteUsageKeys(ctx, projectID, now); derr != nil {
 				slog.Error("redis key deletion failed, cache may be stale", "err", derr, "project_id", projectID)
 			}
 		} else {
-			slog.Debug("cache write ok", "op", "incr_usage", "project_id", projectID)
+			slog.Debug("cache write ok", "op", "incr_usage", "project_id", projectID, "over_daily", snap.OverDaily, "over_monthly", snap.OverMonthly)
+			result.BudgetStatus = s.buildBudgetStatusFromSnapshot(ctx, project, snap)
 		}
 	}
 
-	return usage, nil
+	return result, nil
+}
+
+// buildBudgetStatusFromSnapshot builds a BudgetStatus using the Lua script result
+// for daily/monthly (zero extra round-trips) and SQL for total (always authoritative).
+func (s *UsageService) buildBudgetStatusFromSnapshot(ctx context.Context, project *store.Project, snap *cache.BudgetSnapshot) *BudgetStatus {
+	status := &BudgetStatus{}
+
+	if project.DailyBudgetCents != nil {
+		status.Daily = buildWindow(snap.DailyCents, *project.DailyBudgetCents)
+	}
+	if project.MonthlyBudgetCents != nil {
+		status.Monthly = buildWindow(snap.MonthlyCents, *project.MonthlyBudgetCents)
+	}
+	if project.TotalBudgetCents != nil {
+		totalSpent, err := s.repo.SumCostByProject(ctx, project.ID)
+		if err != nil {
+			slog.Warn("sum cost by project failed", "err", err, "project_id", project.ID)
+		} else {
+			status.Total = buildWindow(totalSpent, *project.TotalBudgetCents)
+		}
+	}
+
+	return status
+}
+
+// ComputeBudgetStatus computes the current budget status for a project without
+// writing anything. Used by GET /projects/{id}. Reads daily/monthly from cache
+// (SQL fallback on miss) and total always from SQL.
+func (s *UsageService) ComputeBudgetStatus(ctx context.Context, project *store.Project) (*BudgetStatus, error) {
+	if project.DailyBudgetCents == nil && project.MonthlyBudgetCents == nil && project.TotalBudgetCents == nil {
+		return nil, nil
+	}
+
+	status := &BudgetStatus{}
+	now := time.Now().UTC()
+
+	if project.DailyBudgetCents != nil {
+		spent, err := s.getDailyCost(ctx, project.ID, now)
+		if err != nil {
+			return nil, err
+		}
+		status.Daily = buildWindow(spent, *project.DailyBudgetCents)
+	}
+
+	if project.MonthlyBudgetCents != nil {
+		spent, err := s.getMonthlyCost(ctx, project.ID, now)
+		if err != nil {
+			return nil, err
+		}
+		status.Monthly = buildWindow(spent, *project.MonthlyBudgetCents)
+	}
+
+	if project.TotalBudgetCents != nil {
+		spent, err := s.repo.SumCostByProject(ctx, project.ID)
+		if err != nil {
+			return nil, err
+		}
+		status.Total = buildWindow(spent, *project.TotalBudgetCents)
+	}
+
+	return status, nil
+}
+
+// getDailyCost tries Redis then falls back to SQL.
+func (s *UsageService) getDailyCost(ctx context.Context, projectID int64, date time.Time) (int64, error) {
+	if s.usageCache != nil {
+		if cost, ok := cacheGet(func() (int64, error) { return s.usageCache.GetDailyCost(ctx, projectID, date) }, "daily_cost"); ok {
+			return cost, nil
+		}
+	}
+	return s.repo.SumCostByDay(ctx, projectID, date)
+}
+
+// getMonthlyCost tries Redis then falls back to SQL.
+func (s *UsageService) getMonthlyCost(ctx context.Context, projectID int64, month time.Time) (int64, error) {
+	if s.usageCache != nil {
+		if cost, ok := cacheGet(func() (int64, error) { return s.usageCache.GetMonthlyCost(ctx, projectID, month) }, "monthly_cost"); ok {
+			return cost, nil
+		}
+	}
+	return s.repo.SumCostByMonth(ctx, projectID, month)
 }
 
 func (s *UsageService) GetDailyStats(ctx context.Context, projectID int64, date time.Time) (*DailyStats, error) {

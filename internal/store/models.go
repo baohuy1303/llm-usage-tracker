@@ -3,11 +3,13 @@ package store
 import "time"
 
 type Project struct {
-	ID        int64      `json:"id"`
-	Name      string     `json:"name"`
-	Budget    int64      `json:"budget"`
-	CreatedAt time.Time  `json:"created_at"`
-	DeletedAt *time.Time `json:"deleted_at,omitempty"`
+	ID                 int64      `json:"id"`
+	Name               string     `json:"name"`
+	DailyBudgetCents   *int64     `json:"daily_budget_cents,omitempty"`
+	MonthlyBudgetCents *int64     `json:"monthly_budget_cents,omitempty"`
+	TotalBudgetCents   *int64     `json:"total_budget_cents,omitempty"`
+	CreatedAt          time.Time  `json:"created_at"`
+	DeletedAt          *time.Time `json:"deleted_at,omitempty"`
 }
 
 type Usage struct {

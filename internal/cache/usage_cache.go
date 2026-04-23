@@ -2,6 +2,7 @@ package cache
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
 	"time"
 
@@ -13,12 +14,28 @@ const (
 	monthlyTTL = 32 * 24 * time.Hour
 )
 
+//go:embed scripts/incr_usage.lua
+var incrUsageSrc string
+
+var incrUsageScript = redis.NewScript(incrUsageSrc)
+
 type UsageCache struct {
 	client *redis.Client
 }
 
 func NewUsageCache(client *redis.Client) *UsageCache {
 	return &UsageCache{client: client}
+}
+
+// BudgetSnapshot is the raw result of the Lua script.
+// DailyBudget / MonthlyBudget are -1 when the project has no budget set for that window.
+type BudgetSnapshot struct {
+	OverDaily     bool
+	DailyCents    int64
+	DailyBudget   int64
+	OverMonthly   bool
+	MonthlyCents  int64
+	MonthlyBudget int64
 }
 
 func dailyCostKey(projectID int64, date time.Time) string {
@@ -33,21 +50,51 @@ func dailyTokensKey(projectID int64, date time.Time) string {
 	return fmt.Sprintf("tokens:%d:%s", projectID, date.Format("2006-01-02"))
 }
 
-// IncrUsage atomically increments all three counters for a usage event using a pipeline.
-func (c *UsageCache) IncrUsage(ctx context.Context, projectID, costCents, tokens int64, at time.Time) error {
-	dck := dailyCostKey(projectID, at)
-	mck := monthlyCostKey(projectID, at)
-	dtk := dailyTokensKey(projectID, at)
+// IncrUsageWithBudget atomically increments the daily/monthly cost and daily token
+// counters, then checks daily and monthly spend against the project's budgets.
+// Pass -1 for a budget value to skip enforcement for that window.
+func (c *UsageCache) IncrUsageWithBudget(
+	ctx context.Context,
+	projectID, costCents, tokens, dailyBudget, monthlyBudget int64,
+	at time.Time,
+) (*BudgetSnapshot, error) {
+	keys := []string{
+		dailyCostKey(projectID, at),
+		monthlyCostKey(projectID, at),
+		dailyTokensKey(projectID, at),
+	}
+	args := []any{
+		costCents,
+		tokens,
+		dailyBudget,
+		monthlyBudget,
+		int64(dailyTTL.Seconds()),
+		int64(monthlyTTL.Seconds()),
+	}
 
-	pipe := c.client.Pipeline()
-	pipe.IncrBy(ctx, dck, costCents)
-	pipe.Expire(ctx, dck, dailyTTL)
-	pipe.IncrBy(ctx, mck, costCents)
-	pipe.Expire(ctx, mck, monthlyTTL)
-	pipe.IncrBy(ctx, dtk, tokens)
-	pipe.Expire(ctx, dtk, dailyTTL)
-	_, err := pipe.Exec(ctx)
-	return err
+	raw, err := incrUsageScript.Run(ctx, c.client, keys, args...).Slice()
+	if err != nil {
+		return nil, err
+	}
+	if len(raw) != 6 {
+		return nil, fmt.Errorf("unexpected lua result length: %d", len(raw))
+	}
+
+	int64At := func(i int) int64 {
+		if v, ok := raw[i].(int64); ok {
+			return v
+		}
+		return 0
+	}
+
+	return &BudgetSnapshot{
+		OverDaily:     int64At(0) == 1,
+		DailyCents:    int64At(1),
+		DailyBudget:   int64At(2),
+		OverMonthly:   int64At(3) == 1,
+		MonthlyCents:  int64At(4),
+		MonthlyBudget: int64At(5),
+	}, nil
 }
 
 // GetDailyCost returns cached cost cents for a project on a given day.

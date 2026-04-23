@@ -1,7 +1,9 @@
 CREATE TABLE IF NOT EXISTS projects (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE,
-    budget INTEGER NOT NULL,
+    daily_budget_cents   INTEGER,
+    monthly_budget_cents INTEGER,
+    total_budget_cents   INTEGER,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     deleted_at DATETIME
 );

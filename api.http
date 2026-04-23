@@ -8,13 +8,32 @@ GET {{baseUrl}}/healthz
 ### PROJECTS
 ### ----------------------------------------------------
 
-### Create Project
+### Create Project (all three budgets set)
 POST {{baseUrl}}/projects/create
 Content-Type: application/json
 
 {
   "name": "Super AI Project",
-  "budget": 50000
+  "daily_budget_cents": 5000,
+  "monthly_budget_cents": 100000,
+  "total_budget_cents": 1000000
+}
+
+### Create Project with only daily budget (monthly/total nullable)
+POST {{baseUrl}}/projects/create
+Content-Type: application/json
+
+{
+  "name": "Daily Only Project",
+  "daily_budget_cents": 2000
+}
+
+### Create Project with no budgets at all (all nullable)
+POST {{baseUrl}}/projects/create
+Content-Type: application/json
+
+{
+  "name": "Unlimited Project"
 }
 
 ### Error - Create Project with duplicate name
@@ -23,7 +42,7 @@ Content-Type: application/json
 
 {
   "name": "Super AI Project",
-  "budget": 10000
+  "daily_budget_cents": 1000
 }
 
 ### Error - Create Project with empty name
@@ -32,16 +51,16 @@ Content-Type: application/json
 
 {
   "name": "",
-  "budget": 10000
+  "daily_budget_cents": 1000
 }
 
-### Error - Create Project with invalid budget
+### Error - Create Project with invalid (negative) budget
 POST {{baseUrl}}/projects/create
 Content-Type: application/json
 
 {
   "name": "Bad Budget Project",
-  "budget": -100
+  "daily_budget_cents": -100
 }
 
 ### List Projects
@@ -53,21 +72,31 @@ GET {{baseUrl}}/projects/1
 ### Error - Get Non-Existent Project
 GET {{baseUrl}}/projects/9999
 
-### Update Project (Partial - budget only)
+### Update Project - change daily budget only
 PATCH {{baseUrl}}/projects/1
 Content-Type: application/json
 
 {
-  "budget": 75000
+  "daily_budget_cents": 7500
 }
 
-### Update Project (Full)
+### Update Project - set all three budgets
+PATCH {{baseUrl}}/projects/1
+Content-Type: application/json
+
+{
+  "daily_budget_cents": 10000,
+  "monthly_budget_cents": 200000,
+  "total_budget_cents": 2000000
+}
+
+### Update Project - rename + update monthly budget
 PATCH {{baseUrl}}/projects/1
 Content-Type: application/json
 
 {
   "name": "Mega AI Project",
-  "budget": 100000
+  "monthly_budget_cents": 150000
 }
 
 ### Delete Project
@@ -171,6 +200,34 @@ Content-Type: application/json
   "latency_ms": 400,
   "tag": "embedding"
 }
+
+### Push daily spend OVER budget — response should show over_budget=true
+### (budget on project 1 is 5000 cents; 1M input tokens on claude-opus-4 ≈ 1500 cents per call)
+POST {{baseUrl}}/projects/1/usage
+Content-Type: application/json
+
+{
+  "model": "claude-opus-4-20250514",
+  "tokens_in": 1000000,
+  "tokens_out": 500000,
+  "latency_ms": 3000,
+  "tag": "bulk"
+}
+
+### Fire the same bulk call again to push total over multiple budgets
+POST {{baseUrl}}/projects/1/usage
+Content-Type: application/json
+
+{
+  "model": "claude-opus-4-20250514",
+  "tokens_in": 1000000,
+  "tokens_out": 500000,
+  "latency_ms": 3000,
+  "tag": "bulk"
+}
+
+### GET project — should now show budget_status with over_budget flags
+GET {{baseUrl}}/projects/1
 
 ### Error - Add Usage with unknown model
 POST {{baseUrl}}/projects/1/usage

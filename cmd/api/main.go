@@ -59,15 +59,17 @@ func main() {
 	}
 
 	projectRepo := store.NewProjectRepo(db)
-	projectService := service.NewProjectService(projectRepo)
-	projectHandler := apphttp.NewProjectHandler(projectService)
-
 	modelRepo := store.NewModelRepo(db)
-	modelService := service.NewModelService(modelRepo)
-	modelHandler := apphttp.NewModelHandler(modelService)
-
 	usageRepo := store.NewUsageRepo(db)
+
+	// Usage service is constructed first because ProjectService depends on it
+	// for budget status computation.
 	usageService := service.NewUsageService(usageRepo, projectRepo, modelRepo, usageCache)
+	projectService := service.NewProjectService(projectRepo, usageService)
+	modelService := service.NewModelService(modelRepo)
+
+	projectHandler := apphttp.NewProjectHandler(projectService)
+	modelHandler := apphttp.NewModelHandler(modelService)
 	usageHandler := apphttp.NewUsageHandler(usageService)
 
 	router := apphttp.NewRouter(projectHandler, modelHandler, usageHandler)

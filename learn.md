@@ -10,6 +10,13 @@ And overall just more clean when we need to change params.
 
 - context.Context: When the user closes the tab, the ctx is "canceled." SQLite and Redis see this signal immediately and stop the query right then and there, saving your server resources. Every log message from the Service and Database folders can then look at the ctx and print that same ID.
 
+- use Lua to ensure no race conditions if 2 req hit at the same time. And would ensure everything run all at once. Without Lua: Go call get redis, then call set redis.
+With Lua just run once.
+
+- //go:embed bake the Lua script into the binary, no extra file needed.
+
+- EVAL sends the script to Redis, and Redis saves and link it with a SHA hash. So next time we can just send the SHA hash to Redis, which is faster.
+
 Flow:
 1. HTTP Handler receives a request. (create ctx and pass it down)
 2. HTTP Handler calls the Service. (final error handling and response sending)

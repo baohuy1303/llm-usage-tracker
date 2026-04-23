@@ -18,8 +18,10 @@ func NewProjectHandler(service *service.ProjectService) *ProjectHandler {
 
 func (h *ProjectHandler) CreateProject(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Name string `json:"name"`
-		Budget int `json:"budget"`
+		Name               string `json:"name"`
+		DailyBudgetCents   *int64 `json:"daily_budget_cents"`
+		MonthlyBudgetCents *int64 `json:"monthly_budget_cents"`
+		TotalBudgetCents   *int64 `json:"total_budget_cents"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -27,7 +29,7 @@ func (h *ProjectHandler) CreateProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	project, err := h.service.CreateProject(r.Context(), req.Name, req.Budget)
+	project, err := h.service.CreateProject(r.Context(), req.Name, req.DailyBudgetCents, req.MonthlyBudgetCents, req.TotalBudgetCents)
 	if err != nil {
 		writeError(w, r, err)
 		return
@@ -76,8 +78,10 @@ func (h *ProjectHandler) UpdateProject(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		Name *string `json:"name"`
-		Budget *int `json:"budget"`
+		Name               *string `json:"name"`
+		DailyBudgetCents   *int64  `json:"daily_budget_cents"`
+		MonthlyBudgetCents *int64  `json:"monthly_budget_cents"`
+		TotalBudgetCents   *int64  `json:"total_budget_cents"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -85,7 +89,7 @@ func (h *ProjectHandler) UpdateProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	project, err := h.service.UpdateProject(r.Context(), id, req.Name, req.Budget)
+	project, err := h.service.UpdateProject(r.Context(), id, req.Name, req.DailyBudgetCents, req.MonthlyBudgetCents, req.TotalBudgetCents)
 	if err != nil {
 		writeError(w, r, err)
 		return

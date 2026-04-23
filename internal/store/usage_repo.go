@@ -82,6 +82,15 @@ func (r *UsageRepo) SumTokensByDay(ctx context.Context, projectID int64, date ti
 	return total, err
 }
 
+func (r *UsageRepo) SumCostByProject(ctx context.Context, projectID int64) (int64, error) {
+	var total int64
+	err := r.db.QueryRowContext(ctx,
+		`SELECT COALESCE(SUM(cost_cents), 0) FROM usage_events WHERE project_id = ?`,
+		projectID,
+	).Scan(&total)
+	return total, err
+}
+
 func (r *UsageRepo) SumUsageByRange(ctx context.Context, projectID int64, from, to time.Time) (*UsageAggregate, error) {
 	var agg UsageAggregate
 	err := r.db.QueryRowContext(ctx,
