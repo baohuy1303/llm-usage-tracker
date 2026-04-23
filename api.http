@@ -177,6 +177,20 @@ Content-Type: application/json
   "tag": "chat"
 }
 
+### Add Usage - asymmetric tokens (verify daily stats shows tokens_in/out split)
+### Post this, then GET /projects/1/usage/daily — response should show
+### tokens_in=5000, tokens_out=200, tokens=5200 distinctly.
+POST {{baseUrl}}/projects/1/usage
+Content-Type: application/json
+
+{
+  "model": "gpt-4o-mini",
+  "tokens_in": 5000,
+  "tokens_out": 200,
+  "latency_ms": 300,
+  "tag": "summarize"
+}
+
 ### Add Usage - second event same day (Redis INCRBY should accumulate)
 POST {{baseUrl}}/projects/1/usage
 Content-Type: application/json

@@ -4,6 +4,7 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -50,12 +51,12 @@ func dailyTokensKey(projectID int64, date time.Time) string {
 	return fmt.Sprintf("tokens:%d:%s", projectID, date.Format("2006-01-02"))
 }
 
-// IncrUsageWithBudget atomically increments the daily/monthly cost and daily token
-// counters, then checks daily and monthly spend against the project's budgets.
-// Pass -1 for a budget value to skip enforcement for that window.
+// IncrUsageWithBudget atomically increments the daily/monthly cost counters and
+// the daily tokens hash (fields "in"/"out"), then checks daily and monthly spend
+// against the project's budgets. Pass -1 for a budget value to skip enforcement.
 func (c *UsageCache) IncrUsageWithBudget(
 	ctx context.Context,
-	projectID, costCents, tokens, dailyBudget, monthlyBudget int64,
+	projectID, costCents, tokensIn, tokensOut, dailyBudget, monthlyBudget int64,
 	at time.Time,
 ) (*BudgetSnapshot, error) {
 	keys := []string{
@@ -65,7 +66,8 @@ func (c *UsageCache) IncrUsageWithBudget(
 	}
 	args := []any{
 		costCents,
-		tokens,
+		tokensIn,
+		tokensOut,
 		dailyBudget,
 		monthlyBudget,
 		int64(dailyTTL.Seconds()),
@@ -109,10 +111,28 @@ func (c *UsageCache) GetMonthlyCost(ctx context.Context, projectID int64, month 
 	return c.client.Get(ctx, monthlyCostKey(projectID, month)).Int64()
 }
 
-// GetDailyTokens returns cached total tokens for a project on a given day.
-// Returns (0, redis.Nil) on cache miss.
-func (c *UsageCache) GetDailyTokens(ctx context.Context, projectID int64, date time.Time) (int64, error) {
-	return c.client.Get(ctx, dailyTokensKey(projectID, date)).Int64()
+// GetDailyTokensSplit returns cached (tokensIn, tokensOut) for a project on a given day.
+// Returns redis.Nil on cache miss. One round-trip via HMGET.
+func (c *UsageCache) GetDailyTokensSplit(ctx context.Context, projectID int64, date time.Time) (int64, int64, error) {
+	key := dailyTokensKey(projectID, date)
+	vals, err := c.client.HMGet(ctx, key, "in", "out").Result()
+	if err != nil {
+		return 0, 0, err
+	}
+	// If the key doesn't exist HMGET returns [nil, nil] — treat as miss.
+	if vals[0] == nil && vals[1] == nil {
+		return 0, 0, redis.Nil
+	}
+
+	parse := func(v any) int64 {
+		s, ok := v.(string)
+		if !ok {
+			return 0
+		}
+		n, _ := strconv.ParseInt(s, 10, 64)
+		return n
+	}
+	return parse(vals[0]), parse(vals[1]), nil
 }
 
 // DeleteUsageKeys removes all three counters for the given project and day.

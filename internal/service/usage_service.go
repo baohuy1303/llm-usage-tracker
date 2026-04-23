@@ -26,10 +26,15 @@ func NewUsageService(repo *store.UsageRepo, projectRepo *store.ProjectRepo, mode
 type DailyStats struct {
 	CostCents int64 `json:"cost_cents"`
 	Tokens    int64 `json:"tokens"`
+	TokensIn  int64 `json:"tokens_in"`
+	TokensOut int64 `json:"tokens_out"`
 }
 
 type MonthlyStats struct {
 	CostCents int64 `json:"cost_cents"`
+	Tokens    int64 `json:"tokens"`
+	TokensIn  int64 `json:"tokens_in"`
+	TokensOut int64 `json:"tokens_out"`
 }
 
 type RangeStats struct {
@@ -37,6 +42,8 @@ type RangeStats struct {
 	To         string `json:"to"`
 	CostCents  int64  `json:"cost_cents"`
 	Tokens     int64  `json:"tokens"`
+	TokensIn   int64  `json:"tokens_in"`
+	TokensOut  int64  `json:"tokens_out"`
 	EventCount int64  `json:"event_count"`
 }
 
@@ -45,16 +52,20 @@ type ProjectSummaryRow struct {
 	ProjectName string `json:"project_name"`
 	CostCents   int64  `json:"cost_cents"`
 	Tokens      int64  `json:"tokens"`
+	TokensIn    int64  `json:"tokens_in"`
+	TokensOut   int64  `json:"tokens_out"`
 	EventCount  int64  `json:"event_count"`
 }
 
 type SummaryStats struct {
-	From            string              `json:"from"`
-	To              string              `json:"to"`
-	TotalCostCents  int64               `json:"total_cost_cents"`
-	TotalTokens     int64               `json:"total_tokens"`
-	TotalEventCount int64               `json:"total_event_count"`
-	Projects        []ProjectSummaryRow `json:"projects"`
+	From             string              `json:"from"`
+	To               string              `json:"to"`
+	TotalCostCents   int64               `json:"total_cost_cents"`
+	TotalTokens      int64               `json:"total_tokens"`
+	TotalTokensIn    int64               `json:"total_tokens_in"`
+	TotalTokensOut   int64               `json:"total_tokens_out"`
+	TotalEventCount  int64               `json:"total_event_count"`
+	Projects         []ProjectSummaryRow `json:"projects"`
 }
 
 // BudgetWindow is the spend/budget/percent/flag for one window (daily, monthly, or total).
@@ -167,7 +178,8 @@ func (s *UsageService) AddUsage(ctx context.Context, projectID int64, modelName 
 			ctx,
 			projectID,
 			costCents,
-			tokensIn+tokensOut,
+			tokensIn,
+			tokensOut,
 			budgetSentinel(project.DailyBudgetCents),
 			budgetSentinel(project.MonthlyBudgetCents),
 			now,
@@ -270,8 +282,16 @@ func (s *UsageService) getMonthlyCost(ctx context.Context, projectID int64, mont
 func (s *UsageService) GetDailyStats(ctx context.Context, projectID int64, date time.Time) (*DailyStats, error) {
 	if s.usageCache != nil {
 		if cost, ok := cacheGet(func() (int64, error) { return s.usageCache.GetDailyCost(ctx, projectID, date) }, "daily_cost"); ok {
-			tokens, _ := cacheGet(func() (int64, error) { return s.usageCache.GetDailyTokens(ctx, projectID, date) }, "daily_tokens")
-			return &DailyStats{CostCents: cost, Tokens: tokens}, nil
+			in, out, err := s.usageCache.GetDailyTokensSplit(ctx, projectID, date)
+			if err != nil && !errors.Is(err, redis.Nil) {
+				slog.Warn("redis read failed", "op", "daily_tokens_split", "err", err)
+			}
+			return &DailyStats{
+				CostCents: cost,
+				Tokens:    in + out,
+				TokensIn:  in,
+				TokensOut: out,
+			}, nil
 		}
 	}
 
@@ -279,25 +299,36 @@ func (s *UsageService) GetDailyStats(ctx context.Context, projectID int64, date 
 	if err != nil {
 		return nil, err
 	}
-	tokens, err := s.repo.SumTokensByDay(ctx, projectID, date)
+	in, out, err := s.repo.SumTokensSplitByDay(ctx, projectID, date)
 	if err != nil {
 		return nil, err
 	}
-	return &DailyStats{CostCents: cost, Tokens: tokens}, nil
+	return &DailyStats{
+		CostCents: cost,
+		Tokens:    in + out,
+		TokensIn:  in,
+		TokensOut: out,
+	}, nil
 }
 
 func (s *UsageService) GetMonthlyStats(ctx context.Context, projectID int64, month time.Time) (*MonthlyStats, error) {
-	if s.usageCache != nil {
-		if cost, ok := cacheGet(func() (int64, error) { return s.usageCache.GetMonthlyCost(ctx, projectID, month) }, "monthly_cost"); ok {
-			return &MonthlyStats{CostCents: cost}, nil
-		}
-	}
-
-	cost, err := s.repo.SumCostByMonth(ctx, projectID, month)
+	// Monthly tokens are not cached (not a hot path) — always SQL.
+	in, out, err := s.repo.SumTokensSplitByMonth(ctx, projectID, month)
 	if err != nil {
 		return nil, err
 	}
-	return &MonthlyStats{CostCents: cost}, nil
+
+	cost, err := s.getMonthlyCost(ctx, projectID, month)
+	if err != nil {
+		return nil, err
+	}
+
+	return &MonthlyStats{
+		CostCents: cost,
+		Tokens:    in + out,
+		TokensIn:  in,
+		TokensOut: out,
+	}, nil
 }
 
 func (s *UsageService) GetProjectRangeStats(ctx context.Context, projectID int64, from, to time.Time) (*RangeStats, error) {
@@ -310,6 +341,8 @@ func (s *UsageService) GetProjectRangeStats(ctx context.Context, projectID int64
 		To:         to.UTC().Format(time.RFC3339),
 		CostCents:  agg.CostCents,
 		Tokens:     agg.Tokens,
+		TokensIn:   agg.TokensIn,
+		TokensOut:  agg.TokensOut,
 		EventCount: agg.EventCount,
 	}, nil
 }
@@ -321,17 +354,21 @@ func (s *UsageService) GetAllProjectsSummary(ctx context.Context, from, to time.
 	}
 
 	projects := make([]ProjectSummaryRow, 0, len(rows))
-	var totalCost, totalTokens, totalCount int64
+	var totalCost, totalTokens, totalTokensIn, totalTokensOut, totalCount int64
 	for _, r := range rows {
 		projects = append(projects, ProjectSummaryRow{
 			ProjectID:   r.ProjectID,
 			ProjectName: r.ProjectName,
 			CostCents:   r.CostCents,
 			Tokens:      r.Tokens,
+			TokensIn:    r.TokensIn,
+			TokensOut:   r.TokensOut,
 			EventCount:  r.EventCount,
 		})
 		totalCost += r.CostCents
 		totalTokens += r.Tokens
+		totalTokensIn += r.TokensIn
+		totalTokensOut += r.TokensOut
 		totalCount += r.EventCount
 	}
 
@@ -340,6 +377,8 @@ func (s *UsageService) GetAllProjectsSummary(ctx context.Context, from, to time.
 		To:              to.UTC().Format(time.RFC3339),
 		TotalCostCents:  totalCost,
 		TotalTokens:     totalTokens,
+		TotalTokensIn:   totalTokensIn,
+		TotalTokensOut:  totalTokensOut,
 		TotalEventCount: totalCount,
 		Projects:        projects,
 	}, nil

@@ -35,6 +35,8 @@ type Model struct {
 type UsageAggregate struct {
 	CostCents  int64
 	Tokens     int64
+	TokensIn   int64
+	TokensOut  int64
 	EventCount int64
 }
 

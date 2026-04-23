@@ -73,13 +73,26 @@ func (r *UsageRepo) SumCostByMonth(ctx context.Context, projectID int64, month t
 	return total, err
 }
 
-func (r *UsageRepo) SumTokensByDay(ctx context.Context, projectID int64, date time.Time) (int64, error) {
-	var total int64
+func (r *UsageRepo) SumTokensSplitByDay(ctx context.Context, projectID int64, date time.Time) (int64, int64, error) {
+	var in, out int64
 	err := r.db.QueryRowContext(ctx,
-		`SELECT COALESCE(SUM(tokens_in + tokens_out), 0) FROM usage_events WHERE project_id = ? AND DATE(created_at) = DATE(?)`,
+		`SELECT COALESCE(SUM(tokens_in), 0), COALESCE(SUM(tokens_out), 0)
+		 FROM usage_events
+		 WHERE project_id = ? AND DATE(created_at) = DATE(?)`,
 		projectID, date.Format("2006-01-02"),
-	).Scan(&total)
-	return total, err
+	).Scan(&in, &out)
+	return in, out, err
+}
+
+func (r *UsageRepo) SumTokensSplitByMonth(ctx context.Context, projectID int64, month time.Time) (int64, int64, error) {
+	var in, out int64
+	err := r.db.QueryRowContext(ctx,
+		`SELECT COALESCE(SUM(tokens_in), 0), COALESCE(SUM(tokens_out), 0)
+		 FROM usage_events
+		 WHERE project_id = ? AND strftime('%Y-%m', created_at) = ?`,
+		projectID, month.Format("2006-01"),
+	).Scan(&in, &out)
+	return in, out, err
 }
 
 func (r *UsageRepo) SumCostByProject(ctx context.Context, projectID int64) (int64, error) {
@@ -96,16 +109,18 @@ func (r *UsageRepo) SumUsageByRange(ctx context.Context, projectID int64, from, 
 	err := r.db.QueryRowContext(ctx,
 		`SELECT
 			COALESCE(SUM(cost_cents), 0),
-			COALESCE(SUM(tokens_in + tokens_out), 0),
+			COALESCE(SUM(tokens_in), 0),
+			COALESCE(SUM(tokens_out), 0),
 			COUNT(*)
 		 FROM usage_events
 		 WHERE project_id = ?
 		   AND created_at BETWEEN ? AND ?`,
 		projectID, from.UTC().Format(sqliteTimeFormat), to.UTC().Format(sqliteTimeFormat),
-	).Scan(&agg.CostCents, &agg.Tokens, &agg.EventCount)
+	).Scan(&agg.CostCents, &agg.TokensIn, &agg.TokensOut, &agg.EventCount)
 	if err != nil {
 		return nil, err
 	}
+	agg.Tokens = agg.TokensIn + agg.TokensOut
 	return &agg, nil
 }
 
@@ -115,7 +130,8 @@ func (r *UsageRepo) SumUsageByRangeAllProjects(ctx context.Context, from, to tim
 			p.id,
 			p.name,
 			SUM(u.cost_cents),
-			SUM(u.tokens_in + u.tokens_out),
+			SUM(u.tokens_in),
+			SUM(u.tokens_out),
 			COUNT(u.id)
 		 FROM usage_events u
 		 JOIN projects p ON p.id = u.project_id
@@ -132,9 +148,10 @@ func (r *UsageRepo) SumUsageByRangeAllProjects(ctx context.Context, from, to tim
 	var result []ProjectUsageAggregate
 	for rows.Next() {
 		var p ProjectUsageAggregate
-		if err := rows.Scan(&p.ProjectID, &p.ProjectName, &p.CostCents, &p.Tokens, &p.EventCount); err != nil {
+		if err := rows.Scan(&p.ProjectID, &p.ProjectName, &p.CostCents, &p.TokensIn, &p.TokensOut, &p.EventCount); err != nil {
 			return nil, err
 		}
+		p.Tokens = p.TokensIn + p.TokensOut
 		result = append(result, p)
 	}
 	return result, nil
