@@ -265,9 +265,18 @@ GET {{baseUrl}}/projects/1/usage/range?from=2026-04-21&to=2026-04-01
 ### Error - Project Range with invalid date format
 GET {{baseUrl}}/projects/1/usage/range?from=04-01-2026&to=04-21-2026
 
+### Project Range - RFC3339 timestamps (exact window, e.g. a 4-hour slice)
+GET {{baseUrl}}/projects/1/usage/range?from=2026-04-21T10:00:00Z&to=2026-04-21T14:00:00Z
+
+### Project Range - mixed date + timestamp (from=start of day, to=exact)
+GET {{baseUrl}}/projects/1/usage/range?from=2026-04-21&to=2026-04-21T12:00:00Z
+
 
 ### Usage Summary - all projects with per-project breakdown + totals
 GET {{baseUrl}}/usage/summary?from=2026-04-01&to=2026-04-21
+
+### Usage Summary - RFC3339 timestamps (exact window)
+GET {{baseUrl}}/usage/summary?from=2026-04-21T00:00:00Z&to=2026-04-21T12:00:00Z
 
 ### Usage Summary - single day
 GET {{baseUrl}}/usage/summary?from=2026-04-21&to=2026-04-21

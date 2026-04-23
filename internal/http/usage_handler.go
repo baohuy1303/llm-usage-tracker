@@ -107,25 +107,26 @@ func (h *UsageHandler) GetMonthlyStats(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(stats)
 }
 
-// parseDateRange pulls required ?from=YYYY-MM-DD&to=YYYY-MM-DD params and validates from <= to.
+// parseTimeRange pulls required ?from=&to= params supporting either YYYY-MM-DD
+// (day-level, expanded to start/end of day UTC) or RFC3339 (exact timestamp).
 // On any error it writes a 400 to the response and returns ok=false.
-func parseDateRange(w http.ResponseWriter, r *http.Request) (from, to time.Time, ok bool) {
+func parseTimeRange(w http.ResponseWriter, r *http.Request) (from, to time.Time, ok bool) {
 	fromStr := r.URL.Query().Get("from")
 	toStr := r.URL.Query().Get("to")
 	if fromStr == "" || toStr == "" {
-		respondError(w, r, http.StatusBadRequest, "from and to are required (YYYY-MM-DD)", nil)
+		respondError(w, r, http.StatusBadRequest, "from and to are required (YYYY-MM-DD or RFC3339)", nil)
 		return
 	}
 
 	var err error
-	from, err = time.Parse("2006-01-02", fromStr)
+	from, err = parseFlexTime(fromStr, false)
 	if err != nil {
-		respondError(w, r, http.StatusBadRequest, "invalid from, expected YYYY-MM-DD", err)
+		respondError(w, r, http.StatusBadRequest, "invalid from, expected YYYY-MM-DD or RFC3339", err)
 		return
 	}
-	to, err = time.Parse("2006-01-02", toStr)
+	to, err = parseFlexTime(toStr, true)
 	if err != nil {
-		respondError(w, r, http.StatusBadRequest, "invalid to, expected YYYY-MM-DD", err)
+		respondError(w, r, http.StatusBadRequest, "invalid to, expected YYYY-MM-DD or RFC3339", err)
 		return
 	}
 	if from.After(to) {
@@ -136,6 +137,22 @@ func parseDateRange(w http.ResponseWriter, r *http.Request) (from, to time.Time,
 	return
 }
 
+// parseFlexTime accepts RFC3339 (e.g. "2026-04-21T10:00:00Z") or YYYY-MM-DD.
+// For date-only input, endOfDay=true expands to 23:59:59 UTC; otherwise 00:00:00 UTC.
+func parseFlexTime(s string, endOfDay bool) (time.Time, error) {
+	if t, err := time.Parse(time.RFC3339, s); err == nil {
+		return t.UTC(), nil
+	}
+	t, err := time.Parse("2006-01-02", s)
+	if err != nil {
+		return time.Time{}, err
+	}
+	if endOfDay {
+		t = t.Add(24*time.Hour - time.Second)
+	}
+	return t.UTC(), nil
+}
+
 // GET /projects/{id}/usage/range?from=2026-04-01&to=2026-04-21
 func (h *UsageHandler) GetProjectRangeStats(w http.ResponseWriter, r *http.Request) {
 	projectID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
@@ -144,7 +161,7 @@ func (h *UsageHandler) GetProjectRangeStats(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	from, to, ok := parseDateRange(w, r)
+	from, to, ok := parseTimeRange(w, r)
 	if !ok {
 		return
 	}
@@ -161,7 +178,7 @@ func (h *UsageHandler) GetProjectRangeStats(w http.ResponseWriter, r *http.Reque
 
 // GET /usage/summary?from=2026-04-01&to=2026-04-21
 func (h *UsageHandler) GetUsageSummary(w http.ResponseWriter, r *http.Request) {
-	from, to, ok := parseDateRange(w, r)
+	from, to, ok := parseTimeRange(w, r)
 	if !ok {
 		return
 	}

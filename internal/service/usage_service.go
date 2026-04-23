@@ -162,8 +162,8 @@ func (s *UsageService) GetProjectRangeStats(ctx context.Context, projectID int64
 		return nil, err
 	}
 	return &RangeStats{
-		From:       from.Format("2006-01-02"),
-		To:         to.Format("2006-01-02"),
+		From:       from.UTC().Format(time.RFC3339),
+		To:         to.UTC().Format(time.RFC3339),
 		CostCents:  agg.CostCents,
 		Tokens:     agg.Tokens,
 		EventCount: agg.EventCount,
@@ -192,8 +192,8 @@ func (s *UsageService) GetAllProjectsSummary(ctx context.Context, from, to time.
 	}
 
 	return &SummaryStats{
-		From:            from.Format("2006-01-02"),
-		To:              to.Format("2006-01-02"),
+		From:            from.UTC().Format(time.RFC3339),
+		To:              to.UTC().Format(time.RFC3339),
 		TotalCostCents:  totalCost,
 		TotalTokens:     totalTokens,
 		TotalEventCount: totalCount,

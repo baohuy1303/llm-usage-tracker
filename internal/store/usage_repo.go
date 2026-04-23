@@ -6,6 +6,10 @@ import (
 	"time"
 )
 
+// sqliteTimeFormat matches how SQLite stores CURRENT_TIMESTAMP values,
+// so string comparisons in WHERE ... BETWEEN work correctly.
+const sqliteTimeFormat = "2006-01-02 15:04:05"
+
 type UsageRepo struct {
 	db *sql.DB
 }
@@ -87,8 +91,8 @@ func (r *UsageRepo) SumUsageByRange(ctx context.Context, projectID int64, from, 
 			COUNT(*)
 		 FROM usage_events
 		 WHERE project_id = ?
-		   AND DATE(created_at) BETWEEN DATE(?) AND DATE(?)`,
-		projectID, from.Format("2006-01-02"), to.Format("2006-01-02"),
+		   AND created_at BETWEEN ? AND ?`,
+		projectID, from.UTC().Format(sqliteTimeFormat), to.UTC().Format(sqliteTimeFormat),
 	).Scan(&agg.CostCents, &agg.Tokens, &agg.EventCount)
 	if err != nil {
 		return nil, err
@@ -106,10 +110,10 @@ func (r *UsageRepo) SumUsageByRangeAllProjects(ctx context.Context, from, to tim
 			COUNT(u.id)
 		 FROM usage_events u
 		 JOIN projects p ON p.id = u.project_id
-		 WHERE DATE(u.created_at) BETWEEN DATE(?) AND DATE(?)
+		 WHERE u.created_at BETWEEN ? AND ?
 		 GROUP BY p.id, p.name
 		 ORDER BY SUM(u.cost_cents) DESC`,
-		from.Format("2006-01-02"), to.Format("2006-01-02"),
+		from.UTC().Format(sqliteTimeFormat), to.UTC().Format(sqliteTimeFormat),
 	)
 	if err != nil {
 		return nil, err
