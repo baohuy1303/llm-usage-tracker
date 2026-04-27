@@ -29,7 +29,7 @@ func (h *UsageHandler) AddUsage(w http.ResponseWriter, r *http.Request) {
 		Model     string `json:"model"`
 		TokensIn  int64  `json:"tokens_in"`
 		TokensOut int64  `json:"tokens_out"`
-		LatencyMs int64  `json:"latency_ms"`
+		LatencyMs *int64 `json:"latency_ms"`
 		Tag       string `json:"tag"`
 	}
 

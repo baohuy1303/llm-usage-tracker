@@ -24,7 +24,7 @@ func (r *UsageRepo) Create(ctx context.Context, usage *Usage) error {
 		INSERT INTO usage_events (project_id, model, tokens_in, tokens_out, cost_cents, latency_ms, tag)
 		VALUES (?, ?, ?, ?, ?, ?, ?)
 	`
-	result, err := r.db.ExecContext(ctx, query, usage.ProjectID, usage.Model, usage.TokensIn, usage.TokensOut, usage.CostCents, usage.LatencyMs, usage.Tag)
+	result, err := r.db.ExecContext(ctx, query, usage.ProjectID, usage.Model, usage.TokensIn, usage.TokensOut, usage.CostCents, nullIntFromPtr(usage.LatencyMs), usage.Tag)
 	if err != nil {
 		return err
 	}
@@ -81,9 +81,11 @@ func (r *UsageRepo) ListEvents(ctx context.Context, f ListEventsFilter) ([]Usage
 	var usages []Usage
 	for rows.Next() {
 		var u Usage
-		if err := rows.Scan(&u.ID, &u.ProjectID, &u.Model, &u.TokensIn, &u.TokensOut, &u.CostCents, &u.LatencyMs, &u.Tag, &u.CreatedAt); err != nil {
+		var latency sql.NullInt64
+		if err := rows.Scan(&u.ID, &u.ProjectID, &u.Model, &u.TokensIn, &u.TokensOut, &u.CostCents, &latency, &u.Tag, &u.CreatedAt); err != nil {
 			return nil, err
 		}
+		u.LatencyMs = ptrFromNullInt(latency)
 		usages = append(usages, u)
 	}
 	return usages, nil

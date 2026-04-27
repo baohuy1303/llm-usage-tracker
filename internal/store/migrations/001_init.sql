@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS usage_events (
     tokens_in INTEGER NOT NULL,
     tokens_out INTEGER NOT NULL,
     cost_cents INTEGER NOT NULL,
-    latency_ms INTEGER NOT NULL,
+    latency_ms INTEGER,
     tag TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );

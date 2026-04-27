@@ -179,7 +179,7 @@ func buildWindow(spent, budget int64) *BudgetWindow {
 }
 
 func (s *UsageService) AddUsage(ctx context.Context, projectID int64, modelName string,
-	tokensIn, tokensOut, latencyMs int64, tag string) (*UsageResult, error) {
+	tokensIn, tokensOut int64, latencyMs *int64, tag string) (*UsageResult, error) {
 
 	project, err := s.projectRepo.GetByID(ctx, projectID)
 	if err != nil {

@@ -191,6 +191,17 @@ Content-Type: application/json
   "tag": "summarize"
 }
 
+### Add Usage - latency_ms omitted (now nullable; field absent from response)
+POST {{baseUrl}}/projects/1/usage
+Content-Type: application/json
+
+{
+  "model": "gpt-4o-mini",
+  "tokens_in": 100,
+  "tokens_out": 50,
+  "tag": "untimed"
+}
+
 ### Add Usage - second event same day (Redis INCRBY should accumulate)
 POST {{baseUrl}}/projects/1/usage
 Content-Type: application/json
