@@ -37,3 +37,15 @@ Middleware - func(http.Handler) http.Handler
 Controller - ProjectHandler
 Service - ProjectService
 Repository - ProjectRepo
+
+
+
+- For metrics, SLA, SLO, SLI helps you understand the health of your system and make decisions about how to improve it.
+- SLI: actual metrics tracked
+- SLO: goal of those metrics
+- SLA: what happens if SLO is not met (penalty, refund, etc)
+
+- Try to aim for SLO that's a lot stricter than SLA. So that you have buffer room to fix things before SLA is breached.
+
+- Quantiles: We use this instead of average because some has worse experience than others. We line the metrics from lowest to highest. And then we take the middle value. Ex: 1, 2, 3, 4, 5. Median / P50 is 3. P95 is 4. P99 is 5.
+- P99 is 99% so for example if P99 is really bad, at large scale maybe 1 million users then 10k users are having bad experience, which isn't good.

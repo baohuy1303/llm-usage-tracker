@@ -13,6 +13,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 	"llm-usage-tracker/internal/cache"
+	"llm-usage-tracker/internal/metrics"
 	"llm-usage-tracker/internal/store"
 )
 
@@ -135,17 +136,20 @@ type UsageResult struct {
 }
 
 // cacheGet calls fn and returns (value, true) on a cache hit, or (zero, false) on miss or error.
-// Hits, misses, and real errors are all logged so call sites don't have to.
+// Hits, misses, and real errors are all logged AND counted in Prometheus.
 func cacheGet[T any](fn func() (T, error), op string) (T, bool) {
 	val, err := fn()
 	if err == nil {
 		slog.Debug("cache hit", "op", op)
+		metrics.CacheHitsTotal.WithLabelValues(op).Inc()
 		return val, true
 	}
 	if errors.Is(err, redis.Nil) {
 		slog.Debug("cache miss", "op", op)
+		metrics.CacheMissesTotal.WithLabelValues(op).Inc()
 	} else {
 		slog.Warn("redis read failed", "op", op, "err", err)
+		metrics.RedisErrorsTotal.WithLabelValues(op).Inc()
 	}
 	var zero T
 	return zero, false
@@ -213,6 +217,16 @@ func (s *UsageService) AddUsage(ctx context.Context, projectID int64, modelName 
 		return nil, err
 	}
 
+	// Record business metrics (post-write so we never count failed writes).
+	pidLabel := strconv.FormatInt(projectID, 10)
+	metrics.UsageEventsTotal.WithLabelValues(pidLabel, modelName).Inc()
+	metrics.UsageCostCentsTotal.WithLabelValues(pidLabel, modelName).Add(float64(costCents))
+	metrics.UsageTokensTotal.WithLabelValues(pidLabel, modelName, "in").Add(float64(tokensIn))
+	metrics.UsageTokensTotal.WithLabelValues(pidLabel, modelName, "out").Add(float64(tokensOut))
+	if latencyMs != nil {
+		metrics.LLMCallDurationSeconds.WithLabelValues(modelName).Observe(float64(*latencyMs) / 1000)
+	}
+
 	result := &UsageResult{Usage: usage}
 
 	if s.usageCache != nil {
@@ -229,11 +243,19 @@ func (s *UsageService) AddUsage(ctx context.Context, projectID int64, modelName 
 		)
 		if err != nil {
 			slog.Warn("redis incr failed, invalidating cache keys", "err", err, "project_id", projectID)
+			metrics.RedisErrorsTotal.WithLabelValues("incr_usage_lua").Inc()
 			if derr := s.usageCache.DeleteUsageKeys(ctx, projectID, now); derr != nil {
 				slog.Error("redis key deletion failed, cache may be stale", "err", derr, "project_id", projectID)
+				metrics.RedisErrorsTotal.WithLabelValues("delete_usage_keys").Inc()
 			}
 		} else {
 			slog.Debug("cache write ok", "op", "incr_usage", "project_id", projectID, "over_daily", snap.OverDaily, "over_monthly", snap.OverMonthly)
+			if snap.OverDaily {
+				metrics.BudgetExceededTotal.WithLabelValues(pidLabel, "daily").Inc()
+			}
+			if snap.OverMonthly {
+				metrics.BudgetExceededTotal.WithLabelValues(pidLabel, "monthly").Inc()
+			}
 			result.BudgetStatus = s.buildBudgetStatusFromSnapshot(ctx, project, snap)
 		}
 	}

@@ -3,6 +3,8 @@ package http
 import (
 	"encoding/json"
 	"net/http"
+
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // No custom struct needed because we are not holding any state
@@ -38,5 +40,14 @@ func NewRouter(ph *ProjectHandler, mh *ModelHandler, uh *UsageHandler) http.Hand
 	mux.HandleFunc("GET /usage/summary", uh.GetUsageSummary)
 	mux.HandleFunc("GET /usage/events", uh.ListAllEvents)
 
-	return LoggingMiddleware(mux)
+	// Wrap the application mux with metrics + logging middleware.
+	wrapped := MetricsMiddleware(mux, LoggingMiddleware(mux))
+
+	// Top-level mux exposes /metrics outside the middleware chain so that
+	// scrape requests don't pollute the very metrics being scraped.
+	top := http.NewServeMux()
+	top.Handle("GET /metrics", promhttp.Handler())
+	top.Handle("/", wrapped)
+
+	return top
 }
