@@ -1,0 +1,45 @@
+services:
+  app:
+    build: .
+    container_name: pulse              # cosmetic; what `docker ps` shows
+    ports:
+      - "8080:8080"
+    environment:
+      - DATABASE_URL=/data/app.db      # path inside the container
+      - REDIS_ADDR=redis:6379          # uses compose-network DNS
+      - LOG_LEVEL=info
+    volumes:
+      - app-data:/data                 # persist SQLite across restarts
+    depends_on:
+      redis:
+        condition: service_started
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis-data:/data               # persist counters/budgets
+
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    depends_on:
+      - app
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana-data:/var/lib/grafana  # persist dashboards/datasources
+    depends_on:
+      - prometheus
+
+volumes:
+  app-data:
+  redis-data:
+  grafana-data:

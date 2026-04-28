@@ -1,0 +1,34 @@
+# git
+.git
+.gitignore
+
+# local data — must not be baked into the image
+data/
+*.db
+
+# secrets — must not be baked into the image
+.env
+.env.*
+
+# editor / OS noise
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# build artifacts
+*.exe
+*.exe~
+*.test
+*.out
+coverage.*
+*.coverprofile
+profile.cov
+
+# docs not needed at runtime
+*.md
+
+# Docker files themselves don't need to be in the build context
+Dockerfile
+docker-compose.yml
+.dockerignore

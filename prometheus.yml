@@ -1,0 +1,9 @@
+global:
+  scrape_interval: 10s
+
+scrape_configs:
+  - job_name: 'pulse'
+    static_configs:
+      # 'app' here MUST match the compose service name (the YAML key under `services:`).
+      # If you rename the service to `pulse:`, change this to ['pulse:8080'].
+      - targets: ['app:8080']
