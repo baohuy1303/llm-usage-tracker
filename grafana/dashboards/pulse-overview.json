@@ -10,35 +10,35 @@
     {
       "id": 1,
       "type": "stat",
-      "title": "Total Spend (24h, cents)",
+      "title": "Spend (24h)",
       "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
           "refId": "A",
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum(increase(llmtracker_usage_cost_cents_total[24h]))",
+          "expr": "(sum(increase(llmtracker_usage_cost_cents_total{project_id=\"$project\"}[24h])) or vector(0)) / 100",
           "instant": true
         }
       ],
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
-          "decimals": 0,
+          "decimals": 2,
           "thresholds": {
             "mode": "absolute",
             "steps": [
               { "color": "green", "value": null },
-              { "color": "yellow", "value": 1000 },
-              { "color": "red", "value": 10000 }
+              { "color": "yellow", "value": 3 },
+              { "color": "red", "value": 10 }
             ]
           },
-          "unit": "none"
+          "unit": "currencyUSD"
         },
         "overrides": []
       },
       "options": {
-        "colorMode": "value",
+        "colorMode": "background",
         "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
@@ -49,23 +49,22 @@
     {
       "id": 2,
       "type": "stat",
-      "title": "Events Recorded (24h)",
+      "title": "Events (24h)",
       "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
           "refId": "A",
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum(increase(llmtracker_usage_events_total[24h]))",
+          "expr": "sum(increase(llmtracker_usage_events_total{project_id=\"$project\"}[24h])) or vector(0)",
           "instant": true
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": { "mode": "fixed", "fixedColor": "blue" },
           "decimals": 0,
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] },
-          "unit": "none"
+          "unit": "short"
         },
         "overrides": []
       },
@@ -81,70 +80,81 @@
     {
       "id": 3,
       "type": "stat",
-      "title": "HTTP Request Rate (5m)",
+      "title": "Tokens (24h)",
       "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
           "refId": "A",
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum(rate(llmtracker_http_requests_total[5m]))",
-          "instant": true
+          "expr": "sum(increase(llmtracker_usage_tokens_total{project_id=\"$project\"}[24h])) or vector(0)",
+          "instant": true,
+          "legendFormat": "Total"
+        },
+        {
+          "refId": "B",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(increase(llmtracker_usage_tokens_total{project_id=\"$project\", direction=\"in\"}[24h])) or vector(0)",
+          "instant": true,
+          "legendFormat": "In"
+        },
+        {
+          "refId": "C",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(increase(llmtracker_usage_tokens_total{project_id=\"$project\", direction=\"out\"}[24h])) or vector(0)",
+          "instant": true,
+          "legendFormat": "Out"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
-          "decimals": 2,
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] },
-          "unit": "reqps"
+          "color": { "mode": "fixed", "fixedColor": "purple" },
+          "decimals": 0,
+          "unit": "short"
         },
         "overrides": []
       },
       "options": {
         "colorMode": "value",
-        "graphMode": "area",
+        "graphMode": "none",
         "justifyMode": "auto",
-        "orientation": "auto",
+        "orientation": "horizontal",
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
-        "textMode": "auto"
+        "textMode": "value_and_name"
       }
     },
     {
       "id": 4,
       "type": "stat",
-      "title": "Cache Hit Ratio (5m)",
+      "title": "Times Over Budget (24h)",
       "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
           "refId": "A",
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum(rate(llmtracker_cache_hits_total[5m])) / (sum(rate(llmtracker_cache_hits_total[5m])) + sum(rate(llmtracker_cache_misses_total[5m])))",
+          "expr": "sum(increase(llmtracker_budget_exceeded_total{project_id=\"$project\"}[24h])) or vector(0)",
           "instant": true
         }
       ],
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
-          "decimals": 2,
+          "decimals": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "red", "value": null },
-              { "color": "yellow", "value": 0.5 },
-              { "color": "green", "value": 0.8 }
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
             ]
           },
-          "unit": "percentunit",
-          "min": 0,
-          "max": 1
+          "unit": "short"
         },
         "overrides": []
       },
       "options": {
-        "colorMode": "value",
-        "graphMode": "area",
+        "colorMode": "background",
+        "graphMode": "none",
         "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
@@ -153,125 +163,244 @@
     },
     {
       "id": 5,
-      "type": "timeseries",
-      "title": "Cost Rate by Model (cents/sec)",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "type": "stat",
+      "title": "Daily Budget",
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 4 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
           "refId": "A",
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum by (model) (rate(llmtracker_usage_cost_cents_total[5m]))",
-          "legendFormat": "{{model}}"
+          "expr": "100 * (sum(increase(llmtracker_usage_cost_cents_total{project_id=\"$project\"}[24h])) or vector(0)) / on() max(llmtracker_project_budget_cents{project_id=\"$project\", window=\"daily\"})",
+          "instant": true,
+          "legendFormat": "%"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "custom": { "drawStyle": "line", "lineInterpolation": "linear", "fillOpacity": 10 },
-          "unit": "none"
+          "color": { "mode": "thresholds" },
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 80 },
+              { "color": "red", "value": 100 }
+            ]
+          },
+          "unit": "percent",
+          "min": 0,
+          "max": 120,
+          "noValue": "no budget"
         },
         "overrides": []
       },
       "options": {
-        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
-        "tooltip": { "mode": "multi", "sort": "desc" }
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
       }
     },
     {
       "id": 6,
-      "type": "timeseries",
-      "title": "HTTP p95 Latency by Route",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "type": "stat",
+      "title": "Monthly Budget",
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 4 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
           "refId": "A",
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.95, sum by (le, route) (rate(llmtracker_http_request_duration_seconds_bucket[5m])))",
-          "legendFormat": "{{route}}"
+          "expr": "100 * (sum(increase(llmtracker_usage_cost_cents_total{project_id=\"$project\"}[30d])) or vector(0)) / on() max(llmtracker_project_budget_cents{project_id=\"$project\", window=\"monthly\"})",
+          "instant": true,
+          "legendFormat": "%"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "custom": { "drawStyle": "line", "lineInterpolation": "linear", "fillOpacity": 0 },
-          "unit": "s"
+          "color": { "mode": "thresholds" },
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 80 },
+              { "color": "red", "value": 100 }
+            ]
+          },
+          "unit": "percent",
+          "min": 0,
+          "max": 120,
+          "noValue": "no budget"
         },
         "overrides": []
       },
       "options": {
-        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
-        "tooltip": { "mode": "multi", "sort": "desc" }
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
       }
     },
     {
       "id": 7,
-      "type": "timeseries",
-      "title": "LLM Call Duration (p50 / p95)",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "type": "stat",
+      "title": "Total Budget",
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 4 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
           "refId": "A",
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.5, sum by (le, model) (rate(llmtracker_llm_call_duration_seconds_bucket[5m])))",
-          "legendFormat": "p50 {{model}}"
-        },
-        {
-          "refId": "B",
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.95, sum by (le, model) (rate(llmtracker_llm_call_duration_seconds_bucket[5m])))",
-          "legendFormat": "p95 {{model}}"
+          "expr": "100 * sum(llmtracker_usage_cost_cents_total{project_id=\"$project\"}) / on() max(llmtracker_project_budget_cents{project_id=\"$project\", window=\"total\"})",
+          "instant": true,
+          "legendFormat": "%"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "custom": { "drawStyle": "line", "lineInterpolation": "linear", "fillOpacity": 0 },
-          "unit": "s"
+          "color": { "mode": "thresholds" },
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 80 },
+              { "color": "red", "value": 100 }
+            ]
+          },
+          "unit": "percent",
+          "min": 0,
+          "max": 120,
+          "noValue": "no budget"
         },
         "overrides": []
       },
       "options": {
-        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
-        "tooltip": { "mode": "multi", "sort": "desc" }
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
       }
     },
     {
       "id": 8,
-      "type": "timeseries",
-      "title": "Budget Exceedances by Window",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "type": "table",
+      "title": "Latest 5 Calls",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 8 },
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "pulse-api" },
       "targets": [
         {
           "refId": "A",
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum by (window) (rate(llmtracker_budget_exceeded_total[5m]))",
-          "legendFormat": "{{window}}"
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "pulse-api" },
+          "type": "json",
+          "source": "url",
+          "format": "table",
+          "url": "/projects/${project}/usage/events",
+          "url_options": {
+            "method": "GET",
+            "data": "",
+            "params": [
+              { "key": "limit", "value": "5" }
+            ]
+          },
+          "root_selector": "events",
+          "columns": [
+            { "selector": "created_at", "text": "Time", "type": "timestamp" },
+            { "selector": "model",      "text": "Model",      "type": "string" },
+            { "selector": "tokens_in",  "text": "Tokens In",  "type": "number" },
+            { "selector": "tokens_out", "text": "Tokens Out", "type": "number" },
+            { "selector": "cost_cents", "text": "Cost (¢)",   "type": "number" },
+            { "selector": "latency_ms", "text": "Latency (ms)", "type": "number" }
+          ],
+          "filters": []
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "custom": { "drawStyle": "line", "lineInterpolation": "linear", "fillOpacity": 20 },
-          "unit": "none",
-          "color": { "mode": "palette-classic" }
+          "color": { "mode": "thresholds" },
+          "custom": { "align": "auto", "displayMode": "auto" }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Latency (ms)" },
+            "properties": [
+              { "id": "unit", "value": "ms" },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "green", "value": null },
+                    { "color": "yellow", "value": 1000 },
+                    { "color": "red", "value": 2000 }
+                  ]
+                }
+              },
+              { "id": "custom.cellOptions", "value": { "type": "color-text" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Cost (¢)" },
+            "properties": [
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "green", "value": null },
+                    { "color": "yellow", "value": 10 }
+                  ]
+                }
+              },
+              { "id": "custom.cellOptions", "value": { "type": "color-text" } }
+            ]
+          }
+        ]
       },
       "options": {
-        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
-        "tooltip": { "mode": "multi", "sort": "desc" }
-      }
+        "showHeader": true,
+        "footer": { "show": false, "reducer": ["sum"], "fields": "" }
+      },
+      "transformations": []
     }
   ],
-  "refresh": "30s",
+  "refresh": "10s",
   "schemaVersion": 39,
   "tags": ["pulse", "llm"],
-  "templating": { "list": [] },
-  "time": { "from": "now-6h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "project",
+        "label": "Project",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": "label_values(llmtracker_project_info, project_id)",
+        "definition": "label_values(llmtracker_project_info, project_id)",
+        "refresh": 2,
+        "regex": "",
+        "sort": 1,
+        "multi": false,
+        "includeAll": false,
+        "current": { "selected": false, "text": "", "value": "" },
+        "options": [],
+        "hide": 0,
+        "skipUrlSync": false
+      }
+    ]
+  },
+  "time": { "from": "now-24h", "to": "now" },
   "timepicker": {},
   "timezone": "",
   "title": "Pulse Overview",
   "uid": "pulse-overview",
-  "version": 1,
+  "version": 2,
   "weekStart": ""
 }

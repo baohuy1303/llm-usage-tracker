@@ -130,3 +130,28 @@ var (
 		[]string{"project_id", "window"},
 	)
 )
+
+// Project metadata gauges. Drive the dashboard project dropdown and budget
+// threshold panels. Set on project create/update, deleted on project delete,
+// re-hydrated from SQL on app startup.
+var (
+	ProjectInfo = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: namespace,
+			Subsystem: "project",
+			Name:      "info",
+			Help:      "1 for each known (non-deleted) project; absent otherwise.",
+		},
+		[]string{"project_id"},
+	)
+
+	ProjectBudgetCents = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: namespace,
+			Subsystem: "project",
+			Name:      "budget_cents",
+			Help:      "Current budget in cents per window (daily|monthly|total). Absent when not set.",
+		},
+		[]string{"project_id", "window"},
+	)
+)

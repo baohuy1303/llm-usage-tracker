@@ -72,6 +72,12 @@ func main() {
 	modelHandler := apphttp.NewModelHandler(modelService)
 	usageHandler := apphttp.NewUsageHandler(usageService)
 
+	// Re-publish project metrics from SQL so a server restart doesn't leave
+	// the Grafana dropdown empty until projects are next touched.
+	if err := projectService.RehydrateMetrics(ctx); err != nil {
+		slog.Warn("Failed to rehydrate project metrics", "err", err)
+	}
+
 	router := apphttp.NewRouter(projectHandler, modelHandler, usageHandler)
 
 	slog.Info("Server started on :8080")
