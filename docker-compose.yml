@@ -34,8 +34,12 @@ services:
       - "3000:3000"
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
+      # Auto-install the Infinity plugin so dashboards can hit your API directly.
+      - GF_INSTALL_PLUGINS=yesoreyeram-infinity-datasource
     volumes:
-      - grafana-data:/var/lib/grafana  # persist dashboards/datasources
+      - grafana-data:/var/lib/grafana                      # persist UI edits / state
+      - ./grafana/provisioning:/etc/grafana/provisioning   # auto-add datasources & dashboard providers
+      - ./grafana/dashboards:/var/lib/grafana/dashboards   # the actual dashboard JSON files
     depends_on:
       - prometheus
 

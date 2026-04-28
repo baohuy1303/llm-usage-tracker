@@ -1,0 +1,23 @@
+apiVersion: 1
+
+# Datasources are auto-created on Grafana startup. The `uid` field is fixed
+# so the provisioned dashboards can reference these by stable identifier.
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true
+
+  # The Infinity plugin lets Grafana panels call arbitrary HTTP APIs —
+  # used for event listings, project summaries, etc. that don't fit the
+  # time-series shape. Plugin is auto-installed via GF_INSTALL_PLUGINS in
+  # docker-compose.yml.
+  - name: Pulse API
+    uid: pulse-api
+    type: yesoreyeram-infinity-datasource
+    access: proxy
+    url: http://app:8080
+    editable: true

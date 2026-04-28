@@ -1,0 +1,15 @@
+apiVersion: 1
+
+providers:
+  - name: 'Pulse'
+    orgId: 1
+    folder: ''
+    type: file
+    # Re-scan the directory every 10s so JSON edits are picked up live during dev.
+    updateIntervalSeconds: 10
+    # Users can edit panels in the UI without provisioning fighting them. Edits
+    # won't persist across container restarts unless they re-export the JSON.
+    allowUiUpdates: true
+    disableDeletion: false
+    options:
+      path: /var/lib/grafana/dashboards
