@@ -24,7 +24,7 @@
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "fixed", "fixedColor": "blue" },
-          "decimals": 4,
+          "decimals": 5,
           "unit": "currencyUSD"
         },
         "overrides": []
@@ -56,7 +56,7 @@
         "defaults": {
           "color": { "mode": "fixed", "fixedColor": "blue" },
           "decimals": 0,
-          "unit": "short"
+          "unit": "none"
         },
         "overrides": []
       },
@@ -102,7 +102,7 @@
         "defaults": {
           "color": { "mode": "fixed", "fixedColor": "purple" },
           "decimals": 0,
-          "unit": "short"
+          "unit": "none"
         },
         "overrides": []
       },
@@ -140,7 +140,7 @@
               { "color": "red", "value": 1 }
             ]
           },
-          "unit": "short"
+          "unit": "none"
         },
         "overrides": []
       },
@@ -171,7 +171,7 @@
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "fixed", "fixedColor": "blue" },
-          "decimals": 4,
+          "decimals": 5,
           "unit": "currencyUSD"
         },
         "overrides": []
@@ -203,7 +203,7 @@
         "defaults": {
           "color": { "mode": "fixed", "fixedColor": "blue" },
           "decimals": 0,
-          "unit": "short"
+          "unit": "none"
         },
         "overrides": []
       },
@@ -249,7 +249,7 @@
         "defaults": {
           "color": { "mode": "fixed", "fixedColor": "purple" },
           "decimals": 0,
-          "unit": "short"
+          "unit": "none"
         },
         "overrides": []
       },
@@ -265,39 +265,55 @@
     {
       "id": 14,
       "type": "stat",
-      "title": "Times Over Budget (24h)",
+      "title": "Amount Over Budget",
       "gridPos": { "h": 4, "w": 6, "x": 18, "y": 4 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
           "refId": "A",
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum(llmtracker_budget_exceeded_total{project_id=\"$project\"}) - (sum(llmtracker_budget_exceeded_total{project_id=\"$project\"} offset 24h) or vector(0))",
-          "instant": true
+          "expr": "clamp_min(((sum(llmtracker_usage_cost_millicents_total{project_id=\"$project\"}) - (sum(llmtracker_usage_cost_millicents_total{project_id=\"$project\"} offset 24h) or vector(0))) - on() max(llmtracker_project_budget_millicents{project_id=\"$project\", window=\"daily\"})) / 100000, 0)",
+          "instant": true,
+          "legendFormat": "Daily"
+        },
+        {
+          "refId": "B",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "clamp_min(((sum(llmtracker_usage_cost_millicents_total{project_id=\"$project\"}) - (sum(llmtracker_usage_cost_millicents_total{project_id=\"$project\"} offset 30d) or vector(0))) - on() max(llmtracker_project_budget_millicents{project_id=\"$project\", window=\"monthly\"})) / 100000, 0)",
+          "instant": true,
+          "legendFormat": "Monthly"
+        },
+        {
+          "refId": "C",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "clamp_min((sum(llmtracker_usage_cost_millicents_total{project_id=\"$project\"}) - on() max(llmtracker_project_budget_millicents{project_id=\"$project\", window=\"total\"})) / 100000, 0)",
+          "instant": true,
+          "legendFormat": "Total"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
-          "decimals": 0,
+          "decimals": 5,
           "thresholds": {
             "mode": "absolute",
             "steps": [
               { "color": "green", "value": null },
-              { "color": "red", "value": 1 }
+              { "color": "red", "value": 0.0001 }
             ]
           },
-          "unit": "short"
+          "unit": "currencyUSD",
+          "noValue": "no budget"
         },
         "overrides": []
       },
       "options": {
-        "colorMode": "background",
+        "colorMode": "value",
         "graphMode": "none",
         "justifyMode": "auto",
-        "orientation": "auto",
+        "orientation": "horizontal",
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
-        "textMode": "auto"
+        "textMode": "value_and_name"
       }
     },
 
@@ -305,7 +321,7 @@
       "id": 5,
       "type": "stat",
       "title": "Daily Budget Used (%)",
-      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 8 },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 8 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
@@ -347,7 +363,7 @@
       "id": 6,
       "type": "stat",
       "title": "Monthly Budget Used (%)",
-      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 8 },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 8 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
@@ -389,7 +405,7 @@
       "id": 7,
       "type": "stat",
       "title": "Total Budget Used (%)",
-      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 8 },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 8 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
@@ -421,6 +437,70 @@
       "options": {
         "colorMode": "background",
         "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 15,
+      "type": "stat",
+      "title": "Avg Latency (ms) (last 5 calls)",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 8 },
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "pulse-api" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "pulse-api" },
+          "type": "json",
+          "source": "url",
+          "format": "table",
+          "url": "/projects/${project}/usage/events",
+          "url_options": {
+            "method": "GET",
+            "data": "",
+            "params": [
+              { "key": "limit", "value": "5" }
+            ]
+          },
+          "root_selector": "events",
+          "columns": [
+            { "selector": "latency_ms", "text": "Latency", "type": "number" }
+          ],
+          "filters": []
+        }
+      ],
+      "transformations": [
+        {
+          "id": "reduce",
+          "options": {
+            "reducers": ["mean"],
+            "mode": "reduceFields",
+            "includeTimeField": false
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1000 },
+              { "color": "red", "value": 2000 }
+            ]
+          },
+          "unit": "none",
+          "noValue": "no calls yet"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
         "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
@@ -470,7 +550,7 @@
           {
             "matcher": { "id": "byName", "options": "Latency (ms)" },
             "properties": [
-              { "id": "unit", "value": "ms" },
+              { "id": "unit", "value": "none" },
               {
                 "id": "thresholds",
                 "value": {
@@ -541,6 +621,6 @@
   "timezone": "",
   "title": "Pulse Overview",
   "uid": "pulse-overview",
-  "version": 3,
+  "version": 4,
   "weekStart": ""
 }
