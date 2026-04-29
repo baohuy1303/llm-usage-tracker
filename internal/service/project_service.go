@@ -51,7 +51,7 @@ func validateBudget(b *int64) error {
 }
 
 // syncProjectMetrics updates the Prometheus gauges for a project. Sets
-// ProjectInfo to 1 (drives the dashboard dropdown) and ProjectBudgetCents
+// ProjectInfo to 1 (drives the dashboard dropdown) and ProjectBudgetMillicents
 // for each window that has a budget; deletes the budget series for any
 // window where the budget was cleared.
 func syncProjectMetrics(p *store.Project) {
@@ -60,14 +60,14 @@ func syncProjectMetrics(p *store.Project) {
 
 	syncBudgetWindow := func(window string, b *int64) {
 		if b == nil {
-			metrics.ProjectBudgetCents.DeleteLabelValues(pid, window)
+			metrics.ProjectBudgetMillicents.DeleteLabelValues(pid, window)
 			return
 		}
-		metrics.ProjectBudgetCents.WithLabelValues(pid, window).Set(float64(*b))
+		metrics.ProjectBudgetMillicents.WithLabelValues(pid, window).Set(float64(*b))
 	}
-	syncBudgetWindow("daily", p.DailyBudgetCents)
-	syncBudgetWindow("monthly", p.MonthlyBudgetCents)
-	syncBudgetWindow("total", p.TotalBudgetCents)
+	syncBudgetWindow("daily", p.DailyBudgetMillicents)
+	syncBudgetWindow("monthly", p.MonthlyBudgetMillicents)
+	syncBudgetWindow("total", p.TotalBudgetMillicents)
 }
 
 // clearProjectMetrics removes all metric series for a deleted project so it
@@ -75,9 +75,9 @@ func syncProjectMetrics(p *store.Project) {
 func clearProjectMetrics(projectID int64) {
 	pid := strconv.FormatInt(projectID, 10)
 	metrics.ProjectInfo.DeleteLabelValues(pid)
-	metrics.ProjectBudgetCents.DeleteLabelValues(pid, "daily")
-	metrics.ProjectBudgetCents.DeleteLabelValues(pid, "monthly")
-	metrics.ProjectBudgetCents.DeleteLabelValues(pid, "total")
+	metrics.ProjectBudgetMillicents.DeleteLabelValues(pid, "daily")
+	metrics.ProjectBudgetMillicents.DeleteLabelValues(pid, "monthly")
+	metrics.ProjectBudgetMillicents.DeleteLabelValues(pid, "total")
 }
 
 // RehydrateMetrics walks all non-deleted projects in SQL and re-publishes their
@@ -111,9 +111,9 @@ func (s *ProjectService) CreateProject(ctx context.Context, name string, daily, 
 
 	project := store.Project{
 		Name:               name,
-		DailyBudgetCents:   daily,
-		MonthlyBudgetCents: monthly,
-		TotalBudgetCents:   total,
+		DailyBudgetMillicents:   daily,
+		MonthlyBudgetMillicents: monthly,
+		TotalBudgetMillicents:   total,
 	}
 
 	err := s.repo.Create(ctx, &project)
@@ -186,19 +186,19 @@ func (s *ProjectService) UpdateProject(ctx context.Context, id int64, name *stri
 		if err := validateBudget(daily); err != nil {
 			return nil, err
 		}
-		project.DailyBudgetCents = daily
+		project.DailyBudgetMillicents = daily
 	}
 	if monthly != nil {
 		if err := validateBudget(monthly); err != nil {
 			return nil, err
 		}
-		project.MonthlyBudgetCents = monthly
+		project.MonthlyBudgetMillicents = monthly
 	}
 	if total != nil {
 		if err := validateBudget(total); err != nil {
 			return nil, err
 		}
-		project.TotalBudgetCents = total
+		project.TotalBudgetMillicents = total
 	}
 
 	err = s.repo.Update(ctx, project)

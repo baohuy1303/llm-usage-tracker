@@ -28,44 +28,47 @@ func NewUsageService(repo *store.UsageRepo, projectRepo *store.ProjectRepo, mode
 	return &UsageService{repo: repo, projectRepo: projectRepo, modelRepo: modelRepo, usageCache: usageCache}
 }
 
+// All money fields below are dollar floats for the API response. Internal
+// storage and Prometheus metrics use millicents — see store.MillicentsToDollars.
+
 type DailyStats struct {
-	CostCents int64 `json:"cost_cents"`
-	Tokens    int64 `json:"tokens"`
-	TokensIn  int64 `json:"tokens_in"`
-	TokensOut int64 `json:"tokens_out"`
+	CostDollars float64 `json:"cost_dollars"`
+	Tokens      int64   `json:"tokens"`
+	TokensIn    int64   `json:"tokens_in"`
+	TokensOut   int64   `json:"tokens_out"`
 }
 
 type MonthlyStats struct {
-	CostCents int64 `json:"cost_cents"`
-	Tokens    int64 `json:"tokens"`
-	TokensIn  int64 `json:"tokens_in"`
-	TokensOut int64 `json:"tokens_out"`
+	CostDollars float64 `json:"cost_dollars"`
+	Tokens      int64   `json:"tokens"`
+	TokensIn    int64   `json:"tokens_in"`
+	TokensOut   int64   `json:"tokens_out"`
 }
 
 type RangeStats struct {
-	From       string `json:"from"`
-	To         string `json:"to"`
-	CostCents  int64  `json:"cost_cents"`
-	Tokens     int64  `json:"tokens"`
-	TokensIn   int64  `json:"tokens_in"`
-	TokensOut  int64  `json:"tokens_out"`
-	EventCount int64  `json:"event_count"`
+	From        string  `json:"from"`
+	To          string  `json:"to"`
+	CostDollars float64 `json:"cost_dollars"`
+	Tokens      int64   `json:"tokens"`
+	TokensIn    int64   `json:"tokens_in"`
+	TokensOut   int64   `json:"tokens_out"`
+	EventCount  int64   `json:"event_count"`
 }
 
 type ProjectSummaryRow struct {
-	ProjectID   int64  `json:"project_id"`
-	ProjectName string `json:"project_name"`
-	CostCents   int64  `json:"cost_cents"`
-	Tokens      int64  `json:"tokens"`
-	TokensIn    int64  `json:"tokens_in"`
-	TokensOut   int64  `json:"tokens_out"`
-	EventCount  int64  `json:"event_count"`
+	ProjectID   int64   `json:"project_id"`
+	ProjectName string  `json:"project_name"`
+	CostDollars float64 `json:"cost_dollars"`
+	Tokens      int64   `json:"tokens"`
+	TokensIn    int64   `json:"tokens_in"`
+	TokensOut   int64   `json:"tokens_out"`
+	EventCount  int64   `json:"event_count"`
 }
 
 type SummaryStats struct {
 	From             string              `json:"from"`
 	To               string              `json:"to"`
-	TotalCostCents   int64               `json:"total_cost_cents"`
+	TotalCostDollars float64             `json:"total_cost_dollars"`
 	TotalTokens      int64               `json:"total_tokens"`
 	TotalTokensIn    int64               `json:"total_tokens_in"`
 	TotalTokensOut   int64               `json:"total_tokens_out"`
@@ -90,8 +93,6 @@ func encodeCursor(t time.Time, id int64) string {
 	return base64.URLEncoding.EncodeToString([]byte(raw))
 }
 
-// decodeCursor unpacks an opaque cursor back into (created_at, id).
-// Returns an error if the cursor is malformed.
 func decodeCursor(s string) (time.Time, int64, error) {
 	raw, err := base64.URLEncoding.DecodeString(s)
 	if err != nil {
@@ -112,31 +113,26 @@ func decodeCursor(s string) (time.Time, int64, error) {
 	return t, id, nil
 }
 
-// BudgetWindow is the spend/budget/percent/flag for one window (daily, monthly, or total).
+// BudgetWindow holds spend and budget for one window. SpentDollars/BudgetDollars
+// are derived from the millicent values stored internally.
 type BudgetWindow struct {
-	SpentCents  int64   `json:"spent_cents"`
-	BudgetCents int64   `json:"budget_cents"`
-	Percent     float64 `json:"percent"`
-	OverBudget  bool    `json:"over_budget"`
+	SpentDollars  float64 `json:"spent_dollars"`
+	BudgetDollars float64 `json:"budget_dollars"`
+	Percent       float64 `json:"percent"`
+	OverBudget    bool    `json:"over_budget"`
 }
 
-// BudgetStatus groups the three budget windows. Any window is nil when the
-// project has no budget set for it.
 type BudgetStatus struct {
 	Daily   *BudgetWindow `json:"daily,omitempty"`
 	Monthly *BudgetWindow `json:"monthly,omitempty"`
 	Total   *BudgetWindow `json:"total,omitempty"`
 }
 
-// UsageResult is the response from AddUsage: the stored usage event plus
-// the post-write budget status. BudgetStatus is nil if Redis was unavailable.
 type UsageResult struct {
 	*store.Usage
 	BudgetStatus *BudgetStatus `json:"budget_status,omitempty"`
 }
 
-// cacheGet calls fn and returns (value, true) on a cache hit, or (zero, false) on miss or error.
-// Hits, misses, and real errors are all logged AND counted in Prometheus.
 func cacheGet[T any](fn func() (T, error), op string) (T, bool) {
 	val, err := fn()
 	if err == nil {
@@ -155,8 +151,6 @@ func cacheGet[T any](fn func() (T, error), op string) (T, bool) {
 	return zero, false
 }
 
-// budgetSentinel returns the int64 value for the Lua script: the budget if set,
-// or -1 to signal "no enforcement for this window".
 func budgetSentinel(b *int64) int64 {
 	if b == nil {
 		return -1
@@ -164,7 +158,7 @@ func budgetSentinel(b *int64) int64 {
 	return *b
 }
 
-// percent computes spend/budget*100, rounded to 1 decimal place. Returns 0 if budget is 0.
+// percent computes spend/budget*100, rounded to 1 decimal. Returns 0 if budget is 0.
 func percent(spent, budget int64) float64 {
 	if budget <= 0 {
 		return 0
@@ -173,12 +167,13 @@ func percent(spent, budget int64) float64 {
 	return float64(int64(p*10)) / 10
 }
 
-func buildWindow(spent, budget int64) *BudgetWindow {
+// buildWindow takes spend and budget in millicents and produces a dollar-denominated window.
+func buildWindow(spentMillicents, budgetMillicents int64) *BudgetWindow {
 	return &BudgetWindow{
-		SpentCents:  spent,
-		BudgetCents: budget,
-		Percent:     percent(spent, budget),
-		OverBudget:  spent > budget,
+		SpentDollars:  store.MillicentsToDollars(spentMillicents),
+		BudgetDollars: store.MillicentsToDollars(budgetMillicents),
+		Percent:       percent(spentMillicents, budgetMillicents),
+		OverBudget:    spentMillicents > budgetMillicents,
 	}
 }
 
@@ -201,26 +196,28 @@ func (s *UsageService) AddUsage(ctx context.Context, projectID int64, modelName 
 		return nil, err
 	}
 
-	costCents := (tokensIn*model.InputPerMillionCents + tokensOut*model.OutputPerMillionCents) / 1_000_000
+	// Pricing is cents per million tokens. We want millicents (= 1000x more precise
+	// than cents). So: cost_millicents = (tokens * cents_per_million * 1000) / 1_000_000
+	// = (tokens * cents_per_million) / 1000.
+	costMillicents := (tokensIn*model.InputPerMillionCents + tokensOut*model.OutputPerMillionCents) / 1000
 
 	usage := &store.Usage{
-		ProjectID: projectID,
-		Model:     modelName,
-		TokensIn:  tokensIn,
-		TokensOut: tokensOut,
-		CostCents: costCents,
-		LatencyMs: latencyMs,
-		Tag:       tag,
+		ProjectID:      projectID,
+		Model:          modelName,
+		TokensIn:       tokensIn,
+		TokensOut:      tokensOut,
+		CostMillicents: costMillicents,
+		LatencyMs:      latencyMs,
+		Tag:            tag,
 	}
 
 	if err := s.repo.Create(ctx, usage); err != nil {
 		return nil, err
 	}
 
-	// Record business metrics (post-write so we never count failed writes).
 	pidLabel := strconv.FormatInt(projectID, 10)
 	metrics.UsageEventsTotal.WithLabelValues(pidLabel, modelName).Inc()
-	metrics.UsageCostCentsTotal.WithLabelValues(pidLabel, modelName).Add(float64(costCents))
+	metrics.UsageCostMillicentsTotal.WithLabelValues(pidLabel, modelName).Add(float64(costMillicents))
 	metrics.UsageTokensTotal.WithLabelValues(pidLabel, modelName, "in").Add(float64(tokensIn))
 	metrics.UsageTokensTotal.WithLabelValues(pidLabel, modelName, "out").Add(float64(tokensOut))
 	if latencyMs != nil {
@@ -234,11 +231,11 @@ func (s *UsageService) AddUsage(ctx context.Context, projectID int64, modelName 
 		snap, err := s.usageCache.IncrUsageWithBudget(
 			ctx,
 			projectID,
-			costCents,
+			costMillicents,
 			tokensIn,
 			tokensOut,
-			budgetSentinel(project.DailyBudgetCents),
-			budgetSentinel(project.MonthlyBudgetCents),
+			budgetSentinel(project.DailyBudgetMillicents),
+			budgetSentinel(project.MonthlyBudgetMillicents),
 			now,
 		)
 		if err != nil {
@@ -263,68 +260,62 @@ func (s *UsageService) AddUsage(ctx context.Context, projectID int64, modelName 
 	return result, nil
 }
 
-// buildBudgetStatusFromSnapshot builds a BudgetStatus using the Lua script result
-// for daily/monthly (zero extra round-trips) and SQL for total (always authoritative).
 func (s *UsageService) buildBudgetStatusFromSnapshot(ctx context.Context, project *store.Project, snap *cache.BudgetSnapshot) *BudgetStatus {
 	status := &BudgetStatus{}
 
-	if project.DailyBudgetCents != nil {
-		status.Daily = buildWindow(snap.DailyCents, *project.DailyBudgetCents)
+	if project.DailyBudgetMillicents != nil {
+		status.Daily = buildWindow(snap.DailyMillicents, *project.DailyBudgetMillicents)
 	}
-	if project.MonthlyBudgetCents != nil {
-		status.Monthly = buildWindow(snap.MonthlyCents, *project.MonthlyBudgetCents)
+	if project.MonthlyBudgetMillicents != nil {
+		status.Monthly = buildWindow(snap.MonthlyMillicents, *project.MonthlyBudgetMillicents)
 	}
-	if project.TotalBudgetCents != nil {
+	if project.TotalBudgetMillicents != nil {
 		totalSpent, err := s.repo.SumCostByProject(ctx, project.ID)
 		if err != nil {
 			slog.Warn("sum cost by project failed", "err", err, "project_id", project.ID)
 		} else {
-			status.Total = buildWindow(totalSpent, *project.TotalBudgetCents)
+			status.Total = buildWindow(totalSpent, *project.TotalBudgetMillicents)
 		}
 	}
 
 	return status
 }
 
-// ComputeBudgetStatus computes the current budget status for a project without
-// writing anything. Used by GET /projects/{id}. Reads daily/monthly from cache
-// (SQL fallback on miss) and total always from SQL.
 func (s *UsageService) ComputeBudgetStatus(ctx context.Context, project *store.Project) (*BudgetStatus, error) {
-	if project.DailyBudgetCents == nil && project.MonthlyBudgetCents == nil && project.TotalBudgetCents == nil {
+	if project.DailyBudgetMillicents == nil && project.MonthlyBudgetMillicents == nil && project.TotalBudgetMillicents == nil {
 		return nil, nil
 	}
 
 	status := &BudgetStatus{}
 	now := time.Now().UTC()
 
-	if project.DailyBudgetCents != nil {
+	if project.DailyBudgetMillicents != nil {
 		spent, err := s.getDailyCost(ctx, project.ID, now)
 		if err != nil {
 			return nil, err
 		}
-		status.Daily = buildWindow(spent, *project.DailyBudgetCents)
+		status.Daily = buildWindow(spent, *project.DailyBudgetMillicents)
 	}
 
-	if project.MonthlyBudgetCents != nil {
+	if project.MonthlyBudgetMillicents != nil {
 		spent, err := s.getMonthlyCost(ctx, project.ID, now)
 		if err != nil {
 			return nil, err
 		}
-		status.Monthly = buildWindow(spent, *project.MonthlyBudgetCents)
+		status.Monthly = buildWindow(spent, *project.MonthlyBudgetMillicents)
 	}
 
-	if project.TotalBudgetCents != nil {
+	if project.TotalBudgetMillicents != nil {
 		spent, err := s.repo.SumCostByProject(ctx, project.ID)
 		if err != nil {
 			return nil, err
 		}
-		status.Total = buildWindow(spent, *project.TotalBudgetCents)
+		status.Total = buildWindow(spent, *project.TotalBudgetMillicents)
 	}
 
 	return status, nil
 }
 
-// getDailyCost tries Redis then falls back to SQL.
 func (s *UsageService) getDailyCost(ctx context.Context, projectID int64, date time.Time) (int64, error) {
 	if s.usageCache != nil {
 		if cost, ok := cacheGet(func() (int64, error) { return s.usageCache.GetDailyCost(ctx, projectID, date) }, "daily_cost"); ok {
@@ -334,7 +325,6 @@ func (s *UsageService) getDailyCost(ctx context.Context, projectID int64, date t
 	return s.repo.SumCostByDay(ctx, projectID, date)
 }
 
-// getMonthlyCost tries Redis then falls back to SQL.
 func (s *UsageService) getMonthlyCost(ctx context.Context, projectID int64, month time.Time) (int64, error) {
 	if s.usageCache != nil {
 		if cost, ok := cacheGet(func() (int64, error) { return s.usageCache.GetMonthlyCost(ctx, projectID, month) }, "monthly_cost"); ok {
@@ -352,10 +342,10 @@ func (s *UsageService) GetDailyStats(ctx context.Context, projectID int64, date 
 				slog.Warn("redis read failed", "op", "daily_tokens_split", "err", err)
 			}
 			return &DailyStats{
-				CostCents: cost,
-				Tokens:    in + out,
-				TokensIn:  in,
-				TokensOut: out,
+				CostDollars: store.MillicentsToDollars(cost),
+				Tokens:      in + out,
+				TokensIn:    in,
+				TokensOut:   out,
 			}, nil
 		}
 	}
@@ -369,15 +359,14 @@ func (s *UsageService) GetDailyStats(ctx context.Context, projectID int64, date 
 		return nil, err
 	}
 	return &DailyStats{
-		CostCents: cost,
-		Tokens:    in + out,
-		TokensIn:  in,
-		TokensOut: out,
+		CostDollars: store.MillicentsToDollars(cost),
+		Tokens:      in + out,
+		TokensIn:    in,
+		TokensOut:   out,
 	}, nil
 }
 
 func (s *UsageService) GetMonthlyStats(ctx context.Context, projectID int64, month time.Time) (*MonthlyStats, error) {
-	// Monthly tokens are not cached (not a hot path) — always SQL.
 	in, out, err := s.repo.SumTokensSplitByMonth(ctx, projectID, month)
 	if err != nil {
 		return nil, err
@@ -389,10 +378,10 @@ func (s *UsageService) GetMonthlyStats(ctx context.Context, projectID int64, mon
 	}
 
 	return &MonthlyStats{
-		CostCents: cost,
-		Tokens:    in + out,
-		TokensIn:  in,
-		TokensOut: out,
+		CostDollars: store.MillicentsToDollars(cost),
+		Tokens:      in + out,
+		TokensIn:    in,
+		TokensOut:   out,
 	}, nil
 }
 
@@ -402,22 +391,16 @@ func (s *UsageService) GetProjectRangeStats(ctx context.Context, projectID int64
 		return nil, err
 	}
 	return &RangeStats{
-		From:       from.UTC().Format(time.RFC3339),
-		To:         to.UTC().Format(time.RFC3339),
-		CostCents:  agg.CostCents,
-		Tokens:     agg.Tokens,
-		TokensIn:   agg.TokensIn,
-		TokensOut:  agg.TokensOut,
-		EventCount: agg.EventCount,
+		From:        from.UTC().Format(time.RFC3339),
+		To:          to.UTC().Format(time.RFC3339),
+		CostDollars: store.MillicentsToDollars(agg.CostMillicents),
+		Tokens:      agg.Tokens,
+		TokensIn:    agg.TokensIn,
+		TokensOut:   agg.TokensOut,
+		EventCount:  agg.EventCount,
 	}, nil
 }
 
-// ListEvents returns a page of raw usage events ordered newest-first.
-// All params except limit are optional:
-//   - projectID nil = across all projects
-//   - from/to nil = unbounded
-//   - cursor empty = first page
-// Limit is clamped to [1, eventsMaxLimit]; passing 0 uses the default.
 func (s *UsageService) ListEvents(ctx context.Context, projectID *int64, from, to *time.Time, cursor string, limit int) (*EventsPage, error) {
 	if limit <= 0 {
 		limit = eventsDefaultLimit
@@ -430,7 +413,7 @@ func (s *UsageService) ListEvents(ctx context.Context, projectID *int64, from, t
 		ProjectID: projectID,
 		From:      from,
 		To:        to,
-		Limit:     limit + 1, // fetch one extra to detect has_more
+		Limit:     limit + 1,
 	}
 
 	if cursor != "" {
@@ -467,18 +450,18 @@ func (s *UsageService) GetAllProjectsSummary(ctx context.Context, from, to time.
 	}
 
 	projects := make([]ProjectSummaryRow, 0, len(rows))
-	var totalCost, totalTokens, totalTokensIn, totalTokensOut, totalCount int64
+	var totalCostMillicents, totalTokens, totalTokensIn, totalTokensOut, totalCount int64
 	for _, r := range rows {
 		projects = append(projects, ProjectSummaryRow{
 			ProjectID:   r.ProjectID,
 			ProjectName: r.ProjectName,
-			CostCents:   r.CostCents,
+			CostDollars: store.MillicentsToDollars(r.CostMillicents),
 			Tokens:      r.Tokens,
 			TokensIn:    r.TokensIn,
 			TokensOut:   r.TokensOut,
 			EventCount:  r.EventCount,
 		})
-		totalCost += r.CostCents
+		totalCostMillicents += r.CostMillicents
 		totalTokens += r.Tokens
 		totalTokensIn += r.TokensIn
 		totalTokensOut += r.TokensOut
@@ -486,13 +469,13 @@ func (s *UsageService) GetAllProjectsSummary(ctx context.Context, from, to time.
 	}
 
 	return &SummaryStats{
-		From:            from.UTC().Format(time.RFC3339),
-		To:              to.UTC().Format(time.RFC3339),
-		TotalCostCents:  totalCost,
-		TotalTokens:     totalTokens,
-		TotalTokensIn:   totalTokensIn,
-		TotalTokensOut:  totalTokensOut,
-		TotalEventCount: totalCount,
-		Projects:        projects,
+		From:             from.UTC().Format(time.RFC3339),
+		To:               to.UTC().Format(time.RFC3339),
+		TotalCostDollars: store.MillicentsToDollars(totalCostMillicents),
+		TotalTokens:      totalTokens,
+		TotalTokensIn:    totalTokensIn,
+		TotalTokensOut:   totalTokensOut,
+		TotalEventCount:  totalCount,
+		Projects:         projects,
 	}, nil
 }

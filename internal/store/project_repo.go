@@ -41,11 +41,11 @@ func ptrFromNullInt(n sql.NullInt64) *int64 {
 func (r *ProjectRepo) Create(ctx context.Context, p *Project) error {
     res, err := r.db.ExecContext(
         ctx,
-        "INSERT INTO projects(name, daily_budget_cents, monthly_budget_cents, total_budget_cents) VALUES (?, ?, ?, ?)",
+        "INSERT INTO projects(name, daily_budget_millicents, monthly_budget_millicents, total_budget_millicents) VALUES (?, ?, ?, ?)",
         p.Name,
-        nullIntFromPtr(p.DailyBudgetCents),
-        nullIntFromPtr(p.MonthlyBudgetCents),
-        nullIntFromPtr(p.TotalBudgetCents),
+        nullIntFromPtr(p.DailyBudgetMillicents),
+        nullIntFromPtr(p.MonthlyBudgetMillicents),
+        nullIntFromPtr(p.TotalBudgetMillicents),
     )
     if err != nil {
         return err
@@ -58,7 +58,7 @@ func (r *ProjectRepo) Create(ctx context.Context, p *Project) error {
 
 func (r *ProjectRepo) List() ([]Project, error) {
 	// Open a connection to the database
-    rows, err := r.db.Query("SELECT id, name, daily_budget_cents, monthly_budget_cents, total_budget_cents, created_at FROM projects WHERE deleted_at IS NULL")
+    rows, err := r.db.Query("SELECT id, name, daily_budget_millicents, monthly_budget_millicents, total_budget_millicents, created_at FROM projects WHERE deleted_at IS NULL")
     if err != nil {
         return nil, err
     }
@@ -73,9 +73,9 @@ func (r *ProjectRepo) List() ([]Project, error) {
         var p Project
         var daily, monthly, total sql.NullInt64
         rows.Scan(&p.ID, &p.Name, &daily, &monthly, &total, &p.CreatedAt)
-        p.DailyBudgetCents = ptrFromNullInt(daily)
-        p.MonthlyBudgetCents = ptrFromNullInt(monthly)
-        p.TotalBudgetCents = ptrFromNullInt(total)
+        p.DailyBudgetMillicents = ptrFromNullInt(daily)
+        p.MonthlyBudgetMillicents = ptrFromNullInt(monthly)
+        p.TotalBudgetMillicents = ptrFromNullInt(total)
         result = append(result, p)
     }
 
@@ -87,26 +87,26 @@ func (r *ProjectRepo) GetByID(ctx context.Context, id int64) (*Project, error) {
 	var daily, monthly, total sql.NullInt64
 	err := r.db.QueryRowContext(
 		ctx,
-		"SELECT id, name, daily_budget_cents, monthly_budget_cents, total_budget_cents, created_at FROM projects WHERE id = ? AND deleted_at IS NULL",
+		"SELECT id, name, daily_budget_millicents, monthly_budget_millicents, total_budget_millicents, created_at FROM projects WHERE id = ? AND deleted_at IS NULL",
 		id,
 	).Scan(&p.ID, &p.Name, &daily, &monthly, &total, &p.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
-	p.DailyBudgetCents = ptrFromNullInt(daily)
-	p.MonthlyBudgetCents = ptrFromNullInt(monthly)
-	p.TotalBudgetCents = ptrFromNullInt(total)
+	p.DailyBudgetMillicents = ptrFromNullInt(daily)
+	p.MonthlyBudgetMillicents = ptrFromNullInt(monthly)
+	p.TotalBudgetMillicents = ptrFromNullInt(total)
 	return &p, nil
 }
 
 func (r *ProjectRepo) Update(ctx context.Context, p *Project) error {
 	_, err := r.db.ExecContext(
 		ctx,
-		"UPDATE projects SET name = ?, daily_budget_cents = ?, monthly_budget_cents = ?, total_budget_cents = ? WHERE id = ? AND deleted_at IS NULL",
+		"UPDATE projects SET name = ?, daily_budget_millicents = ?, monthly_budget_millicents = ?, total_budget_millicents = ? WHERE id = ? AND deleted_at IS NULL",
 		p.Name,
-		nullIntFromPtr(p.DailyBudgetCents),
-		nullIntFromPtr(p.MonthlyBudgetCents),
-		nullIntFromPtr(p.TotalBudgetCents),
+		nullIntFromPtr(p.DailyBudgetMillicents),
+		nullIntFromPtr(p.MonthlyBudgetMillicents),
+		nullIntFromPtr(p.TotalBudgetMillicents),
 		p.ID,
 	)
 	return err

@@ -88,12 +88,12 @@ var (
 		[]string{"project_id", "model"},
 	)
 
-	UsageCostCentsTotal = promauto.NewCounterVec(
+	UsageCostMillicentsTotal = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: namespace,
 			Subsystem: "usage",
-			Name:      "cost_cents_total",
-			Help:      "Cumulative cost in cents, labeled by project and model.",
+			Name:      "cost_millicents_total",
+			Help:      "Cumulative cost in millicents (1 cent = 1000 millicents), labeled by project and model. Divide by 100,000 to get dollars.",
 		},
 		[]string{"project_id", "model"},
 	)
@@ -145,12 +145,12 @@ var (
 		[]string{"project_id"},
 	)
 
-	ProjectBudgetCents = promauto.NewGaugeVec(
+	ProjectBudgetMillicents = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: namespace,
 			Subsystem: "project",
-			Name:      "budget_cents",
-			Help:      "Current budget in cents per window (daily|monthly|total). Absent when not set.",
+			Name:      "budget_millicents",
+			Help:      "Current budget in millicents per window (daily|monthly|total). Absent when not set. Divide by 100,000 to get dollars.",
 		},
 		[]string{"project_id", "window"},
 	)

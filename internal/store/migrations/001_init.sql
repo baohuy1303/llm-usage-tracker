@@ -1,9 +1,11 @@
 CREATE TABLE IF NOT EXISTS projects (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE,
-    daily_budget_cents   INTEGER,
-    monthly_budget_cents INTEGER,
-    total_budget_cents   INTEGER,
+    -- All money columns are stored as millicents (1 cent = 1000 millicents).
+    -- API request/response converts to/from dollars (float).
+    daily_budget_millicents   INTEGER,
+    monthly_budget_millicents INTEGER,
+    total_budget_millicents   INTEGER,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     deleted_at DATETIME
 );
@@ -14,7 +16,7 @@ CREATE TABLE IF NOT EXISTS usage_events (
     model TEXT NOT NULL,
     tokens_in INTEGER NOT NULL,
     tokens_out INTEGER NOT NULL,
-    cost_cents INTEGER NOT NULL,
+    cost_millicents INTEGER NOT NULL,
     latency_ms INTEGER,
     tag TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP

@@ -14,9 +14,9 @@ Content-Type: application/json
 
 {
   "name": "Super AI Project",
-  "daily_budget_cents": 5000,
-  "monthly_budget_cents": 100000,
-  "total_budget_cents": 1000000
+  "daily_budget_dollars": 50.00,
+  "monthly_budget_dollars": 1000.00,
+  "total_budget_dollars": 10000.00
 }
 
 ### Create Project with only daily budget (monthly/total nullable)
@@ -25,7 +25,7 @@ Content-Type: application/json
 
 {
   "name": "Daily Only Project",
-  "daily_budget_cents": 2000
+  "daily_budget_dollars": 20.00
 }
 
 ### Create Project with no budgets at all (all nullable)
@@ -42,7 +42,7 @@ Content-Type: application/json
 
 {
   "name": "Super AI Project",
-  "daily_budget_cents": 1000
+  "daily_budget_dollars": 10.00
 }
 
 ### Error - Create Project with empty name
@@ -51,7 +51,7 @@ Content-Type: application/json
 
 {
   "name": "",
-  "daily_budget_cents": 1000
+  "daily_budget_dollars": 10.00
 }
 
 ### Error - Create Project with invalid (negative) budget
@@ -60,7 +60,7 @@ Content-Type: application/json
 
 {
   "name": "Bad Budget Project",
-  "daily_budget_cents": -100
+  "daily_budget_dollars": -1.00
 }
 
 ### List Projects
@@ -77,7 +77,7 @@ PATCH {{baseUrl}}/projects/1
 Content-Type: application/json
 
 {
-  "daily_budget_cents": 7500
+  "daily_budget_dollars": 75.00
 }
 
 ### Update Project - set all three budgets
@@ -85,9 +85,9 @@ PATCH {{baseUrl}}/projects/1
 Content-Type: application/json
 
 {
-  "daily_budget_cents": 10000,
-  "monthly_budget_cents": 200000,
-  "total_budget_cents": 2000000
+  "daily_budget_dollars": 100.00,
+  "monthly_budget_dollars": 2000.00,
+  "total_budget_dollars": 20000.00
 }
 
 ### Update Project - rename + update monthly budget
@@ -96,7 +96,7 @@ Content-Type: application/json
 
 {
   "name": "Mega AI Project",
-  "monthly_budget_cents": 150000
+  "monthly_budget_dollars": 1500.00
 }
 
 ### Delete Project

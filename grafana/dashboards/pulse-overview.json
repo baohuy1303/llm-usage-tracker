@@ -10,36 +10,28 @@
     {
       "id": 1,
       "type": "stat",
-      "title": "Spend (24h)",
+      "title": "Total Spend",
       "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
           "refId": "A",
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "(sum(increase(llmtracker_usage_cost_cents_total{project_id=\"$project\"}[24h])) or vector(0)) / 100",
+          "expr": "sum(llmtracker_usage_cost_millicents_total{project_id=\"$project\"}) / 100000 or vector(0)",
           "instant": true
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
-          "decimals": 2,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 3 },
-              { "color": "red", "value": 10 }
-            ]
-          },
+          "color": { "mode": "fixed", "fixedColor": "blue" },
+          "decimals": 4,
           "unit": "currencyUSD"
         },
         "overrides": []
       },
       "options": {
-        "colorMode": "background",
-        "graphMode": "area",
+        "colorMode": "value",
+        "graphMode": "none",
         "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
@@ -49,14 +41,14 @@
     {
       "id": 2,
       "type": "stat",
-      "title": "Events (24h)",
+      "title": "Total Events",
       "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
           "refId": "A",
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum(increase(llmtracker_usage_events_total{project_id=\"$project\"}[24h])) or vector(0)",
+          "expr": "sum(llmtracker_usage_events_total{project_id=\"$project\"}) or vector(0)",
           "instant": true
         }
       ],
@@ -70,7 +62,7 @@
       },
       "options": {
         "colorMode": "value",
-        "graphMode": "area",
+        "graphMode": "none",
         "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
@@ -80,28 +72,28 @@
     {
       "id": 3,
       "type": "stat",
-      "title": "Tokens (24h)",
+      "title": "Total Tokens",
       "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
           "refId": "A",
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum(increase(llmtracker_usage_tokens_total{project_id=\"$project\"}[24h])) or vector(0)",
+          "expr": "sum(llmtracker_usage_tokens_total{project_id=\"$project\"}) or vector(0)",
           "instant": true,
           "legendFormat": "Total"
         },
         {
           "refId": "B",
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum(increase(llmtracker_usage_tokens_total{project_id=\"$project\", direction=\"in\"}[24h])) or vector(0)",
+          "expr": "sum(llmtracker_usage_tokens_total{project_id=\"$project\", direction=\"in\"}) or vector(0)",
           "instant": true,
           "legendFormat": "In"
         },
         {
           "refId": "C",
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum(increase(llmtracker_usage_tokens_total{project_id=\"$project\", direction=\"out\"}[24h])) or vector(0)",
+          "expr": "sum(llmtracker_usage_tokens_total{project_id=\"$project\", direction=\"out\"}) or vector(0)",
           "instant": true,
           "legendFormat": "Out"
         }
@@ -126,14 +118,14 @@
     {
       "id": 4,
       "type": "stat",
-      "title": "Times Over Budget (24h)",
+      "title": "Total Times Over Budget",
       "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
           "refId": "A",
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum(increase(llmtracker_budget_exceeded_total{project_id=\"$project\"}[24h])) or vector(0)",
+          "expr": "sum(llmtracker_budget_exceeded_total{project_id=\"$project\"}) or vector(0)",
           "instant": true
         }
       ],
@@ -161,19 +153,166 @@
         "textMode": "auto"
       }
     },
+
     {
-      "id": 5,
+      "id": 11,
       "type": "stat",
-      "title": "Daily Budget",
-      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 4 },
+      "title": "Spend (24h)",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 4 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
           "refId": "A",
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "100 * (sum(increase(llmtracker_usage_cost_cents_total{project_id=\"$project\"}[24h])) or vector(0)) / on() max(llmtracker_project_budget_cents{project_id=\"$project\", window=\"daily\"})",
+          "expr": "(sum(llmtracker_usage_cost_millicents_total{project_id=\"$project\"}) - (sum(llmtracker_usage_cost_millicents_total{project_id=\"$project\"} offset 24h) or vector(0))) / 100000",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "blue" },
+          "decimals": 4,
+          "unit": "currencyUSD"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 12,
+      "type": "stat",
+      "title": "Events (24h)",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(llmtracker_usage_events_total{project_id=\"$project\"}) - (sum(llmtracker_usage_events_total{project_id=\"$project\"} offset 24h) or vector(0))",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "blue" },
+          "decimals": 0,
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 13,
+      "type": "stat",
+      "title": "Tokens (24h)",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(llmtracker_usage_tokens_total{project_id=\"$project\"}) - (sum(llmtracker_usage_tokens_total{project_id=\"$project\"} offset 24h) or vector(0))",
           "instant": true,
-          "legendFormat": "%"
+          "legendFormat": "Total"
+        },
+        {
+          "refId": "B",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(llmtracker_usage_tokens_total{project_id=\"$project\", direction=\"in\"}) - (sum(llmtracker_usage_tokens_total{project_id=\"$project\", direction=\"in\"} offset 24h) or vector(0))",
+          "instant": true,
+          "legendFormat": "In"
+        },
+        {
+          "refId": "C",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(llmtracker_usage_tokens_total{project_id=\"$project\", direction=\"out\"}) - (sum(llmtracker_usage_tokens_total{project_id=\"$project\", direction=\"out\"} offset 24h) or vector(0))",
+          "instant": true,
+          "legendFormat": "Out"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "purple" },
+          "decimals": 0,
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "value_and_name"
+      }
+    },
+    {
+      "id": 14,
+      "type": "stat",
+      "title": "Times Over Budget (24h)",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(llmtracker_budget_exceeded_total{project_id=\"$project\"}) - (sum(llmtracker_budget_exceeded_total{project_id=\"$project\"} offset 24h) or vector(0))",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      }
+    },
+
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Daily Budget Used (%)",
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "100 * (sum(llmtracker_usage_cost_millicents_total{project_id=\"$project\"}) - (sum(llmtracker_usage_cost_millicents_total{project_id=\"$project\"} offset 24h) or vector(0))) / on() max(llmtracker_project_budget_millicents{project_id=\"$project\", window=\"daily\"})",
+          "instant": true
         }
       ],
       "fieldConfig": {
@@ -207,16 +346,15 @@
     {
       "id": 6,
       "type": "stat",
-      "title": "Monthly Budget",
-      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 4 },
+      "title": "Monthly Budget Used (%)",
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 8 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
           "refId": "A",
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "100 * (sum(increase(llmtracker_usage_cost_cents_total{project_id=\"$project\"}[30d])) or vector(0)) / on() max(llmtracker_project_budget_cents{project_id=\"$project\", window=\"monthly\"})",
-          "instant": true,
-          "legendFormat": "%"
+          "expr": "100 * (sum(llmtracker_usage_cost_millicents_total{project_id=\"$project\"}) - (sum(llmtracker_usage_cost_millicents_total{project_id=\"$project\"} offset 30d) or vector(0))) / on() max(llmtracker_project_budget_millicents{project_id=\"$project\", window=\"monthly\"})",
+          "instant": true
         }
       ],
       "fieldConfig": {
@@ -250,16 +388,15 @@
     {
       "id": 7,
       "type": "stat",
-      "title": "Total Budget",
-      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 4 },
+      "title": "Total Budget Used (%)",
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 8 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
           "refId": "A",
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "100 * sum(llmtracker_usage_cost_cents_total{project_id=\"$project\"}) / on() max(llmtracker_project_budget_cents{project_id=\"$project\", window=\"total\"})",
-          "instant": true,
-          "legendFormat": "%"
+          "expr": "100 * sum(llmtracker_usage_cost_millicents_total{project_id=\"$project\"}) / on() max(llmtracker_project_budget_millicents{project_id=\"$project\", window=\"total\"})",
+          "instant": true
         }
       ],
       "fieldConfig": {
@@ -290,11 +427,12 @@
         "textMode": "auto"
       }
     },
+
     {
       "id": 8,
       "type": "table",
       "title": "Latest 5 Calls",
-      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 8 },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 12 },
       "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "pulse-api" },
       "targets": [
         {
@@ -313,12 +451,12 @@
           },
           "root_selector": "events",
           "columns": [
-            { "selector": "created_at", "text": "Time", "type": "timestamp" },
-            { "selector": "model",      "text": "Model",      "type": "string" },
-            { "selector": "tokens_in",  "text": "Tokens In",  "type": "number" },
-            { "selector": "tokens_out", "text": "Tokens Out", "type": "number" },
-            { "selector": "cost_cents", "text": "Cost (¢)",   "type": "number" },
-            { "selector": "latency_ms", "text": "Latency (ms)", "type": "number" }
+            { "selector": "created_at",  "text": "Time",         "type": "timestamp" },
+            { "selector": "model",       "text": "Model",        "type": "string" },
+            { "selector": "tokens_in",   "text": "Tokens In",    "type": "number" },
+            { "selector": "tokens_out",  "text": "Tokens Out",   "type": "number" },
+            { "selector": "cost_dollars","text": "Cost",         "type": "number" },
+            { "selector": "latency_ms",  "text": "Latency (ms)", "type": "number" }
           ],
           "filters": []
         }
@@ -348,15 +486,17 @@
             ]
           },
           {
-            "matcher": { "id": "byName", "options": "Cost (¢)" },
+            "matcher": { "id": "byName", "options": "Cost" },
             "properties": [
+              { "id": "unit", "value": "currencyUSD" },
+              { "id": "decimals", "value": 5 },
               {
                 "id": "thresholds",
                 "value": {
                   "mode": "absolute",
                   "steps": [
                     { "color": "green", "value": null },
-                    { "color": "yellow", "value": 10 }
+                    { "color": "yellow", "value": 0.10 }
                   ]
                 }
               },
@@ -401,6 +541,6 @@
   "timezone": "",
   "title": "Pulse Overview",
   "uid": "pulse-overview",
-  "version": 2,
+  "version": 3,
   "weekStart": ""
 }

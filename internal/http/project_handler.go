@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"llm-usage-tracker/internal/service"
+	"llm-usage-tracker/internal/store"
 )
 
 type ProjectHandler struct {
@@ -16,12 +17,22 @@ func NewProjectHandler(service *service.ProjectService) *ProjectHandler {
 	return &ProjectHandler{service: service}
 }
 
+// dollarsToMillicentsPtr converts an optional dollar float to optional millicent
+// int for the service layer. Nil in -> nil out (= "no budget set").
+func dollarsToMillicentsPtr(d *float64) *int64 {
+	if d == nil {
+		return nil
+	}
+	v := store.DollarsToMillicents(*d)
+	return &v
+}
+
 func (h *ProjectHandler) CreateProject(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Name               string `json:"name"`
-		DailyBudgetCents   *int64 `json:"daily_budget_cents"`
-		MonthlyBudgetCents *int64 `json:"monthly_budget_cents"`
-		TotalBudgetCents   *int64 `json:"total_budget_cents"`
+		Name                 string   `json:"name"`
+		DailyBudgetDollars   *float64 `json:"daily_budget_dollars"`
+		MonthlyBudgetDollars *float64 `json:"monthly_budget_dollars"`
+		TotalBudgetDollars   *float64 `json:"total_budget_dollars"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -29,7 +40,11 @@ func (h *ProjectHandler) CreateProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	project, err := h.service.CreateProject(r.Context(), req.Name, req.DailyBudgetCents, req.MonthlyBudgetCents, req.TotalBudgetCents)
+	project, err := h.service.CreateProject(r.Context(), req.Name,
+		dollarsToMillicentsPtr(req.DailyBudgetDollars),
+		dollarsToMillicentsPtr(req.MonthlyBudgetDollars),
+		dollarsToMillicentsPtr(req.TotalBudgetDollars),
+	)
 	if err != nil {
 		writeError(w, r, err)
 		return
@@ -78,10 +93,10 @@ func (h *ProjectHandler) UpdateProject(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		Name               *string `json:"name"`
-		DailyBudgetCents   *int64  `json:"daily_budget_cents"`
-		MonthlyBudgetCents *int64  `json:"monthly_budget_cents"`
-		TotalBudgetCents   *int64  `json:"total_budget_cents"`
+		Name                 *string  `json:"name"`
+		DailyBudgetDollars   *float64 `json:"daily_budget_dollars"`
+		MonthlyBudgetDollars *float64 `json:"monthly_budget_dollars"`
+		TotalBudgetDollars   *float64 `json:"total_budget_dollars"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -89,7 +104,11 @@ func (h *ProjectHandler) UpdateProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	project, err := h.service.UpdateProject(r.Context(), id, req.Name, req.DailyBudgetCents, req.MonthlyBudgetCents, req.TotalBudgetCents)
+	project, err := h.service.UpdateProject(r.Context(), id, req.Name,
+		dollarsToMillicentsPtr(req.DailyBudgetDollars),
+		dollarsToMillicentsPtr(req.MonthlyBudgetDollars),
+		dollarsToMillicentsPtr(req.TotalBudgetDollars),
+	)
 	if err != nil {
 		writeError(w, r, err)
 		return

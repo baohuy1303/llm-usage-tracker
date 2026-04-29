@@ -28,15 +28,16 @@ func NewUsageCache(client *redis.Client) *UsageCache {
 	return &UsageCache{client: client}
 }
 
-// BudgetSnapshot is the raw result of the Lua script.
-// DailyBudget / MonthlyBudget are -1 when the project has no budget set for that window.
+// BudgetSnapshot is the raw result of the Lua script. All money fields are
+// millicents (1 cent = 1000 millicents). DailyBudget / MonthlyBudget are -1
+// when the project has no budget set for that window.
 type BudgetSnapshot struct {
-	OverDaily     bool
-	DailyCents    int64
-	DailyBudget   int64
-	OverMonthly   bool
-	MonthlyCents  int64
-	MonthlyBudget int64
+	OverDaily        bool
+	DailyMillicents  int64
+	DailyBudget      int64
+	OverMonthly      bool
+	MonthlyMillicents int64
+	MonthlyBudget    int64
 }
 
 func dailyCostKey(projectID int64, date time.Time) string {
@@ -53,10 +54,11 @@ func dailyTokensKey(projectID int64, date time.Time) string {
 
 // IncrUsageWithBudget atomically increments the daily/monthly cost counters and
 // the daily tokens hash (fields "in"/"out"), then checks daily and monthly spend
-// against the project's budgets. Pass -1 for a budget value to skip enforcement.
+// against the project's budgets. All money values are in millicents.
+// Pass -1 for a budget value to skip enforcement.
 func (c *UsageCache) IncrUsageWithBudget(
 	ctx context.Context,
-	projectID, costCents, tokensIn, tokensOut, dailyBudget, monthlyBudget int64,
+	projectID, costMillicents, tokensIn, tokensOut, dailyBudgetMillicents, monthlyBudgetMillicents int64,
 	at time.Time,
 ) (*BudgetSnapshot, error) {
 	keys := []string{
@@ -65,11 +67,11 @@ func (c *UsageCache) IncrUsageWithBudget(
 		dailyTokensKey(projectID, at),
 	}
 	args := []any{
-		costCents,
+		costMillicents,
 		tokensIn,
 		tokensOut,
-		dailyBudget,
-		monthlyBudget,
+		dailyBudgetMillicents,
+		monthlyBudgetMillicents,
 		int64(dailyTTL.Seconds()),
 		int64(monthlyTTL.Seconds()),
 	}
@@ -90,12 +92,12 @@ func (c *UsageCache) IncrUsageWithBudget(
 	}
 
 	return &BudgetSnapshot{
-		OverDaily:     int64At(0) == 1,
-		DailyCents:    int64At(1),
-		DailyBudget:   int64At(2),
-		OverMonthly:   int64At(3) == 1,
-		MonthlyCents:  int64At(4),
-		MonthlyBudget: int64At(5),
+		OverDaily:         int64At(0) == 1,
+		DailyMillicents:   int64At(1),
+		DailyBudget:       int64At(2),
+		OverMonthly:       int64At(3) == 1,
+		MonthlyMillicents: int64At(4),
+		MonthlyBudget:     int64At(5),
 	}, nil
 }
 
