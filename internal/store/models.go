@@ -61,7 +61,7 @@ type Usage struct {
 	TokensIn       int64     `json:"tokens_in"`
 	TokensOut      int64     `json:"tokens_out"`
 	CostMillicents int64     `json:"-"`
-	LatencyMs      *int64    `json:"latency_ms,omitempty"`
+	LatencyMs      *int64    `json:"latency_ms"`
 	Tag            string    `json:"tag"`
 	CreatedAt      time.Time `json:"created_at"`
 }

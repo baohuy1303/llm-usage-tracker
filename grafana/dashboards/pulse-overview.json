@@ -334,7 +334,7 @@
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
-          "decimals": 1,
+          "decimals": 2,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -376,7 +376,7 @@
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
-          "decimals": 1,
+          "decimals": 2,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -418,7 +418,7 @@
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
-          "decimals": 1,
+          "decimals": 2,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -473,6 +473,19 @@
       ],
       "transformations": [
         {
+          "id": "filterByValue",
+          "options": {
+            "filters": [
+              {
+                "fieldName": "Latency",
+                "config": { "id": "isNotNull", "options": {} }
+              }
+            ],
+            "type": "include",
+            "match": "all"
+          }
+        },
+        {
           "id": "reduce",
           "options": {
             "reducers": ["mean"],
@@ -484,7 +497,7 @@
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
-          "decimals": 0,
+          "decimals": 1,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -621,6 +634,6 @@
   "timezone": "",
   "title": "Pulse Overview",
   "uid": "pulse-overview",
-  "version": 4,
+  "version": 6,
   "weekStart": ""
 }
