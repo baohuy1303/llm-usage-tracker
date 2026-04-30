@@ -91,6 +91,88 @@ func (r *UsageRepo) ListEvents(ctx context.Context, f ListEventsFilter) ([]Usage
 	return usages, nil
 }
 
+// RecentLatencyStats holds an average latency over the latest N events.
+// AvgLatencyMs is nil when no events in the window have a non-null latency_ms.
+type RecentLatencyStats struct {
+	AvgLatencyMs      *float64
+	EventsWithLatency int64
+	EventsTotal       int64
+}
+
+// GetRecentLatencyStats computes the mean latency over the latest `limit` events
+// for a project. SQLite's AVG() natively ignores NULLs, so events without a
+// recorded latency don't break the math.
+func (r *UsageRepo) GetRecentLatencyStats(ctx context.Context, projectID int64, limit int) (*RecentLatencyStats, error) {
+	query := `
+		SELECT AVG(latency_ms), COUNT(latency_ms), COUNT(*)
+		FROM (
+			SELECT latency_ms
+			FROM usage_events
+			WHERE project_id = ?
+			ORDER BY created_at DESC, id DESC
+			LIMIT ?
+		)`
+	var avg sql.NullFloat64
+	var withLatency, total int64
+	err := r.db.QueryRowContext(ctx, query, projectID, limit).Scan(&avg, &withLatency, &total)
+	if err != nil {
+		return nil, err
+	}
+	stats := &RecentLatencyStats{
+		EventsWithLatency: withLatency,
+		EventsTotal:       total,
+	}
+	if avg.Valid {
+		v := avg.Float64
+		stats.AvgLatencyMs = &v
+	}
+	return stats, nil
+}
+
+// UsageMetricsRow is one row from AggregateForMetrics: cumulative event counts,
+// cost, and tokens grouped by (project_id, model). Used to rehydrate the
+// Prometheus counters from SQL on startup so dashboards stay consistent across
+// app restarts.
+type UsageMetricsRow struct {
+	ProjectID      int64
+	Model          string
+	EventCount     int64
+	CostMillicents int64
+	TokensIn       int64
+	TokensOut      int64
+}
+
+// AggregateForMetrics returns one row per (project_id, model) with all-time
+// cumulative totals. Includes events from soft-deleted projects intentionally
+// since cumulative queries should reflect history.
+func (r *UsageRepo) AggregateForMetrics(ctx context.Context) ([]UsageMetricsRow, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT
+			project_id,
+			model,
+			COUNT(*),
+			COALESCE(SUM(cost_millicents), 0),
+			COALESCE(SUM(tokens_in), 0),
+			COALESCE(SUM(tokens_out), 0)
+		FROM usage_events
+		GROUP BY project_id, model`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []UsageMetricsRow
+	for rows.Next() {
+		var row UsageMetricsRow
+		if err := rows.Scan(&row.ProjectID, &row.Model, &row.EventCount, &row.CostMillicents, &row.TokensIn, &row.TokensOut); err != nil {
+			return nil, err
+		}
+		result = append(result, row)
+	}
+	return result, nil
+}
+
+
 func (r *UsageRepo) SumCostByDay(ctx context.Context, projectID int64, date time.Time) (int64, error) {
 	var total int64
 	err := r.db.QueryRowContext(ctx,

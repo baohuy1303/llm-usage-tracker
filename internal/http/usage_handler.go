@@ -107,6 +107,35 @@ func (h *UsageHandler) GetMonthlyStats(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(stats)
 }
 
+// GET /projects/{id}/usage/recent-latency?limit=5
+// Returns avg latency over the latest N events, ignoring null latency values.
+func (h *UsageHandler) GetRecentLatencyStats(w http.ResponseWriter, r *http.Request) {
+	projectID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		respondError(w, r, http.StatusBadRequest, "invalid id", err)
+		return
+	}
+
+	limit := 0
+	if s := r.URL.Query().Get("limit"); s != "" {
+		n, err := strconv.Atoi(s)
+		if err != nil || n <= 0 {
+			respondError(w, r, http.StatusBadRequest, "invalid limit, expected positive integer", err)
+			return
+		}
+		limit = n
+	}
+
+	stats, err := h.service.GetRecentLatencyStats(r.Context(), projectID, limit)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(stats)
+}
+
 // parseTimeRange pulls required ?from=&to= params supporting either YYYY-MM-DD
 // (day-level, expanded to start/end of day UTC) or RFC3339 (exact timestamp).
 // On any error it writes a 400 to the response and returns ok=false.

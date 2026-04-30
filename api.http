@@ -268,16 +268,16 @@ Content-Type: application/json
   "tag": "embedding"
 }
 
-### Push spend OVER the daily $5 budget — single bulk call (~$2.70).
-### Fire 2-3 times to cross the budget, then GET /projects/{id} to see
+### Push spend OVER the daily $5 budget — single massive call (~$90.00).
+### This crosses the budget instantly. Then GET /projects/{id} to see
 ### budget_status.daily.over_budget = true.
 POST {{baseUrl}}/projects/{{projectId}}/usage
 Content-Type: application/json
 
 {
   "model": "claude-opus-4-20250514",
-  "tokens_in": 30000,
-  "tokens_out": 30000,
+  "tokens_in": 1000000,
+  "tokens_out": 1000000,
   "latency_ms": 3000,
   "tag": "bulk"
 }
@@ -342,6 +342,10 @@ GET {{baseUrl}}/projects/2/usage/daily
 
 ### Get Stats for non-existent project (also returns zeros)
 GET {{baseUrl}}/projects/9999/usage/daily
+
+### Recent Avg Latency — average of last N events, ignoring null latency_ms.
+### Used by the Grafana Avg Latency panel. Limit defaults to 5.
+GET {{baseUrl}}/projects/{{projectId}}/usage/recent-latency?limit=5
 
 ### --- error cases ---
 

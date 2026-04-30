@@ -10,8 +10,7 @@
 [![Grafana](https://img.shields.io/badge/dashboards-grafana-F46800?logo=grafana)](grafana/dashboards/pulse-overview.json)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-<!-- Replace with a real screenshot/gif once you have one. Suggested: a Grafana dashboard screenshot at docs/dashboard.png -->
-<p><em>Hero image goes here. Drop a Grafana dashboard screenshot at <code>docs/dashboard.png</code> and reference it.</em></p>
+![Pulse Dashboard](docs/dashboard.png)
 
 </div>
 
@@ -37,7 +36,7 @@ I built Pulse to solve this. It's a lightweight, self-hosted tracker for anyone 
 ```bash
 git clone https://github.com/baohuy1303/llm-usage-tracker.git
 cd llm-usage-tracker
-docker compose up --build -d
+docker compose up --build
 ```
 
 That's it. Four containers come up:
@@ -67,8 +66,6 @@ graph LR
 ```
 
 SQL is the source of truth. Redis caches per-day and per-month counters for fast budget reads. Prometheus stores time-series for dashboards. The dashboard hits Prometheus for aggregates and your API directly for event-level lists.
-
-More detail in [`learn.md`](learn.md).
 
 ## API
 
@@ -116,7 +113,7 @@ All optional. Defaults work for `docker compose up`.
 
 | Layer | Library |
 |-------|---------|
-| HTTP | Go 1.22+ stdlib `net/http` (no framework) |
+| HTTP | Go 1.26+ stdlib `net/http` (no framework) |
 | DB | [`modernc.org/sqlite`](https://pkg.go.dev/modernc.org/sqlite) (pure-Go SQLite, no CGO) |
 | Cache | [`go-redis/v9`](https://github.com/redis/go-redis) |
 | Metrics | [`prometheus/client_golang`](https://github.com/prometheus/client_golang) |
@@ -153,3 +150,10 @@ When the Lua script changes the shape of a Redis key (e.g. tokens key changing f
 ## License
 
 [MIT](LICENSE)
+
+
+## My notes
+
+It's a fun little project where I try to learn and implement many golang and new techs. I would like to expand this project to support team tracking and AI-assisted IDEs in the future.
+
+

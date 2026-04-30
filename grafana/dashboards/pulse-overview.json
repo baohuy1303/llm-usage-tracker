@@ -102,7 +102,7 @@
         "defaults": {
           "color": { "mode": "fixed", "fixedColor": "purple" },
           "decimals": 0,
-          "unit": "none"
+          "unit": "locale"
         },
         "overrides": []
       },
@@ -118,7 +118,7 @@
     {
       "id": 4,
       "type": "stat",
-      "title": "Total Times Over Budget",
+      "title": "Total times over budget this session",
       "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
@@ -249,7 +249,7 @@
         "defaults": {
           "color": { "mode": "fixed", "fixedColor": "purple" },
           "decimals": 0,
-          "unit": "none"
+          "unit": "locale"
         },
         "overrides": []
       },
@@ -456,7 +456,7 @@
           "type": "json",
           "source": "url",
           "format": "table",
-          "url": "/projects/${project}/usage/events",
+          "url": "/projects/${project}/usage/recent-latency",
           "url_options": {
             "method": "GET",
             "data": "",
@@ -464,36 +464,14 @@
               { "key": "limit", "value": "5" }
             ]
           },
-          "root_selector": "events",
+          "root_selector": "",
           "columns": [
-            { "selector": "latency_ms", "text": "Latency", "type": "number" }
+            { "selector": "avg_latency_ms", "text": "Avg", "type": "number" }
           ],
           "filters": []
         }
       ],
-      "transformations": [
-        {
-          "id": "filterByValue",
-          "options": {
-            "filters": [
-              {
-                "fieldName": "Latency",
-                "config": { "id": "isNotNull", "options": {} }
-              }
-            ],
-            "type": "include",
-            "match": "all"
-          }
-        },
-        {
-          "id": "reduce",
-          "options": {
-            "reducers": ["mean"],
-            "mode": "reduceFields",
-            "includeTimeField": false
-          }
-        }
-      ],
+      "transformations": [],
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -595,6 +573,20 @@
               },
               { "id": "custom.cellOptions", "value": { "type": "color-text" } }
             ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Tokens In" },
+            "properties": [
+              { "id": "unit", "value": "locale" },
+              { "id": "decimals", "value": 0 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Tokens Out" },
+            "properties": [
+              { "id": "unit", "value": "locale" },
+              { "id": "decimals", "value": 0 }
+            ]
           }
         ]
       },
@@ -634,6 +626,6 @@
   "timezone": "",
   "title": "Pulse Overview",
   "uid": "pulse-overview",
-  "version": 6,
+  "version": 9,
   "weekStart": ""
 }

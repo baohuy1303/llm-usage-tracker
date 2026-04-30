@@ -78,6 +78,12 @@ func main() {
 		slog.Warn("Failed to rehydrate project metrics", "err", err)
 	}
 
+	// Replay cumulative usage totals from SQL into the Prometheus counters so
+	// dashboards show all-time spend/events/tokens after a restart instead of 0.
+	if err := usageService.RehydrateCounterMetrics(ctx); err != nil {
+		slog.Warn("Failed to rehydrate usage counter metrics", "err", err)
+	}
+
 	router := apphttp.NewRouter(projectHandler, modelHandler, usageHandler)
 
 	slog.Info("Server started on :8080")

@@ -177,6 +177,69 @@ func buildWindow(spentMillicents, budgetMillicents int64) *BudgetWindow {
 	}
 }
 
+// RecentLatencyStats is the API response type for GET /projects/{id}/usage/recent-latency.
+// AvgLatencyMs is nil when none of the latest N events recorded a latency.
+type RecentLatencyStats struct {
+	AvgLatencyMs      *float64 `json:"avg_latency_ms"`
+	EventsWithLatency int64    `json:"events_with_latency"`
+	EventsTotal       int64    `json:"events_total"`
+}
+
+const (
+	recentLatencyDefaultLimit = 5
+	recentLatencyMaxLimit     = 100
+)
+
+// GetRecentLatencyStats returns the mean latency over the latest `limit` events
+// for a project. Used by the Grafana "Avg Latency" panel.
+func (s *UsageService) GetRecentLatencyStats(ctx context.Context, projectID int64, limit int) (*RecentLatencyStats, error) {
+	if limit <= 0 {
+		limit = recentLatencyDefaultLimit
+	}
+	if limit > recentLatencyMaxLimit {
+		limit = recentLatencyMaxLimit
+	}
+	stats, err := s.repo.GetRecentLatencyStats(ctx, projectID, limit)
+	if err != nil {
+		return nil, err
+	}
+	return &RecentLatencyStats{
+		AvgLatencyMs:      stats.AvgLatencyMs,
+		EventsWithLatency: stats.EventsWithLatency,
+		EventsTotal:       stats.EventsTotal,
+	}, nil
+}
+
+// RehydrateCounterMetrics replays cumulative usage totals from SQL into the
+// Prometheus counters. Called once on app startup BEFORE the HTTP server begins
+// accepting requests, so there's no race with concurrent AddUsage calls.
+//
+// Without this, a container restart leaves the dashboard's "Total Spend" /
+// "Total Events" / "Total Tokens" panels stuck at 0 until new events come in,
+// even though SQL has all the history.
+//
+// BudgetExceededTotal and LLMCallDurationSeconds are not rehydrated:
+//   - BudgetExceededTotal would require recomputing each event against the
+//     project's budget AT THAT TIME, which we don't store.
+//   - LLMCallDurationSeconds is a histogram; replaying every Observe() is
+//     expensive and the resulting distribution is identical to what gets built
+//     up after a few minutes of normal traffic anyway.
+func (s *UsageService) RehydrateCounterMetrics(ctx context.Context) error {
+	rows, err := s.repo.AggregateForMetrics(ctx)
+	if err != nil {
+		return err
+	}
+	for _, row := range rows {
+		pid := strconv.FormatInt(row.ProjectID, 10)
+		metrics.UsageEventsTotal.WithLabelValues(pid, row.Model).Add(float64(row.EventCount))
+		metrics.UsageCostMillicentsTotal.WithLabelValues(pid, row.Model).Add(float64(row.CostMillicents))
+		metrics.UsageTokensTotal.WithLabelValues(pid, row.Model, "in").Add(float64(row.TokensIn))
+		metrics.UsageTokensTotal.WithLabelValues(pid, row.Model, "out").Add(float64(row.TokensOut))
+	}
+	slog.Info("rehydrated usage counter metrics", "rows", len(rows))
+	return nil
+}
+
 func (s *UsageService) AddUsage(ctx context.Context, projectID int64, modelName string,
 	tokensIn, tokensOut int64, latencyMs *int64, tag string) (*UsageResult, error) {
 
