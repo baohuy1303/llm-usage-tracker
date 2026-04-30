@@ -1,119 +1,66 @@
-@baseUrl = http://localhost:8080
+# ============================================================================
+# Pulse API — Request Collection
+# ============================================================================
+#
+# This file is your dev-time control panel for the API. Every endpoint is
+# documented here with a working example body.
+#
+# How to use it:
+#   VS Code:    install the "REST Client" extension (humao.rest-client) — then
+#               click "Send Request" above any `###` block below.
+#   JetBrains:  open and click the "▶" gutter icon on any request.
+#   Thunder Client / Bruno: import this file as a collection.
+#
+# Variables (edit these at the top to match your local data):
+#   @baseUrl    — your running API. Default assumes `docker compose up`.
+#   @projectId  — used in all path-scoped requests. Set to whatever id your
+#                 most-recently-created project has.
+#   @modelName  — model name to log usage against. Must exist in /models.
+#
+# QUICKSTART section starts at line 36 — most-used requests in workflow order.
+# DETAILED CRUD sections start at line 105 — full coverage including error cases.
+# See api.md for a navigation table with line numbers.
+# ============================================================================
 
-### GET Health Check
+@baseUrl    = http://localhost:8080
+@projectId  = 1
+@modelName  = gpt-4o
+@modelId    = 1
+
+
+### Health Check — confirm the server is reachable
 GET {{baseUrl}}/healthz
 
 
-### ----------------------------------------------------
-### PROJECTS
-### ----------------------------------------------------
+# ============================================================================
+# QUICKSTART — top 9 most-used endpoints, in workflow order
+# ============================================================================
+# Click Send on these top-to-bottom on a fresh DB and you'll have a project,
+# a usage event recorded against it, the events listed back, and the budget
+# updated. After this, scroll past line 175 for full CRUD + error cases.
+# ============================================================================
 
-### Create Project (all three budgets set)
+### [1] Create Project — captured as `createProject` so chained requests
+###     below can reference {{createProject.response.body.$.id}}.
+# @name createProject
 POST {{baseUrl}}/projects/create
 Content-Type: application/json
 
 {
-  "name": "Super AI Project",
-  "daily_budget_dollars": 50.00,
-  "monthly_budget_dollars": 1000.00,
-  "total_budget_dollars": 10000.00
+  "name": "Demo Project",
+  "daily_budget_dollars": 5.00,
+  "monthly_budget_dollars": 100.00,
+  "total_budget_dollars": 1000.00
 }
 
-### Create Project with only daily budget (monthly/total nullable)
-POST {{baseUrl}}/projects/create
-Content-Type: application/json
-
-{
-  "name": "Daily Only Project",
-  "daily_budget_dollars": 20.00
-}
-
-### Create Project with no budgets at all (all nullable)
-POST {{baseUrl}}/projects/create
-Content-Type: application/json
-
-{
-  "name": "Unlimited Project"
-}
-
-### Error - Create Project with duplicate name
-POST {{baseUrl}}/projects/create
-Content-Type: application/json
-
-{
-  "name": "Super AI Project",
-  "daily_budget_dollars": 10.00
-}
-
-### Error - Create Project with empty name
-POST {{baseUrl}}/projects/create
-Content-Type: application/json
-
-{
-  "name": "",
-  "daily_budget_dollars": 10.00
-}
-
-### Error - Create Project with invalid (negative) budget
-POST {{baseUrl}}/projects/create
-Content-Type: application/json
-
-{
-  "name": "Bad Budget Project",
-  "daily_budget_dollars": -1.00
-}
-
-### List Projects
+### [2] List Projects — see what exists
 GET {{baseUrl}}/projects
 
-### Get Project By ID
-GET {{baseUrl}}/projects/1
+### [3] Get Project By ID — using the captured id from [1]
+GET {{baseUrl}}/projects/{{createProject.response.body.$.id}}
 
-### Error - Get Non-Existent Project
-GET {{baseUrl}}/projects/9999
-
-### Update Project - change daily budget only
-PATCH {{baseUrl}}/projects/1
-Content-Type: application/json
-
-{
-  "daily_budget_dollars": 75.00
-}
-
-### Update Project - set all three budgets
-PATCH {{baseUrl}}/projects/1
-Content-Type: application/json
-
-{
-  "daily_budget_dollars": 100.00,
-  "monthly_budget_dollars": 2000.00,
-  "total_budget_dollars": 20000.00
-}
-
-### Update Project - rename + update monthly budget
-PATCH {{baseUrl}}/projects/1
-Content-Type: application/json
-
-{
-  "name": "Mega AI Project",
-  "monthly_budget_dollars": 1500.00
-}
-
-### Delete Project
-DELETE {{baseUrl}}/projects/1
-
-### Error - Get Deleted Project
-GET {{baseUrl}}/projects/1
-
-
-### ----------------------------------------------------
-### MODELS
-### ----------------------------------------------------
-
-### List Models
-GET {{baseUrl}}/models
-
-### Create Model
+### [4] Add Model — only needed if your call uses a model not in the seeded list
+# @name createModel
 POST {{baseUrl}}/models
 Content-Type: application/json
 
@@ -123,7 +70,142 @@ Content-Type: application/json
   "output_per_million_cents": 200
 }
 
-### Error - Create Model with duplicate name
+### [5] List Models — see all models (seeded + custom)
+GET {{baseUrl}}/models
+
+### [6] Add Usage Event — log a call. cost_dollars is computed server-side.
+POST {{baseUrl}}/projects/{{projectId}}/usage
+Content-Type: application/json
+
+{
+  "model": "{{modelName}}",
+  "tokens_in": 1500,
+  "tokens_out": 500,
+  "latency_ms": 350,
+  "tag": "chat"
+}
+
+### [7] List Usage Events — cursor-paginated, newest first
+# @name firstPage
+GET {{baseUrl}}/projects/{{projectId}}/usage/events
+
+### [8] Update Project Budget — PATCH partial update
+PATCH {{baseUrl}}/projects/{{projectId}}
+Content-Type: application/json
+
+{
+  "daily_budget_dollars": 10.00
+}
+
+### [9] GET Project — see live budget_status (spend vs limits, % used, flags)
+GET {{baseUrl}}/projects/{{projectId}}
+
+
+# ============================================================================
+# DETAILED CRUD — full coverage including variations + error cases
+# ============================================================================
+
+
+### ----------------------------------------------------
+### PROJECTS — variations and errors
+### ----------------------------------------------------
+
+### Create Project with only daily budget — monthly/total left null
+POST {{baseUrl}}/projects/create
+Content-Type: application/json
+
+{
+  "name": "Daily Only Project",
+  "daily_budget_dollars": 2.00
+}
+
+### Create Project with no budgets at all — all enforcement disabled
+POST {{baseUrl}}/projects/create
+Content-Type: application/json
+
+{
+  "name": "Unlimited Project"
+}
+
+### Update Project — set all three budgets at once
+PATCH {{baseUrl}}/projects/{{projectId}}
+Content-Type: application/json
+
+{
+  "daily_budget_dollars": 10.00,
+  "monthly_budget_dollars": 200.00,
+  "total_budget_dollars": 2000.00
+}
+
+### Update Project — rename + bump monthly budget
+PATCH {{baseUrl}}/projects/{{projectId}}
+Content-Type: application/json
+
+{
+  "name": "Demo Project (renamed)",
+  "monthly_budget_dollars": 150.00
+}
+
+### Delete Project (soft delete)
+DELETE {{baseUrl}}/projects/{{projectId}}
+
+### --- error cases ---
+
+### Error - Create Project with duplicate name
+POST {{baseUrl}}/projects/create
+Content-Type: application/json
+
+{
+  "name": "Demo Project",
+  "daily_budget_dollars": 1.00
+}
+
+### Error - Create Project with empty name
+POST {{baseUrl}}/projects/create
+Content-Type: application/json
+
+{
+  "name": "",
+  "daily_budget_dollars": 1.00
+}
+
+### Error - Create Project with negative budget
+POST {{baseUrl}}/projects/create
+Content-Type: application/json
+
+{
+  "name": "Bad Budget Project",
+  "daily_budget_dollars": -1.00
+}
+
+### Error - Get Non-Existent Project
+GET {{baseUrl}}/projects/9999
+
+### Error - Get Soft-Deleted Project (after running DELETE above)
+GET {{baseUrl}}/projects/{{projectId}}
+
+
+### ----------------------------------------------------
+### MODELS — variations and errors
+### ----------------------------------------------------
+
+### Get Model By ID
+GET {{baseUrl}}/models/{{modelId}}
+
+### Update Model (Partial — output pricing only)
+PATCH {{baseUrl}}/models/{{createModel.response.body.$.id}}
+Content-Type: application/json
+
+{
+  "output_per_million_cents": 250
+}
+
+### Delete Model
+DELETE {{baseUrl}}/models/{{createModel.response.body.$.id}}
+
+### --- error cases ---
+
+### Error - Create Model with duplicate name (run AFTER quickstart [4])
 POST {{baseUrl}}/models
 Content-Type: application/json
 
@@ -143,44 +225,16 @@ Content-Type: application/json
   "output_per_million_cents": 200
 }
 
-### Get Model By ID
-GET {{baseUrl}}/models/1
-
 ### Error - Get Non-Existent Model
 GET {{baseUrl}}/models/9999
 
-### Update Model (Partial - output pricing only)
-PATCH {{baseUrl}}/models/10
-Content-Type: application/json
-
-{
-  "output_per_million_cents": 250
-}
-
-### Delete Model
-DELETE {{baseUrl}}/models/10
-
 
 ### ----------------------------------------------------
-### USAGE
+### USAGE — variations and errors
 ### ----------------------------------------------------
 
-### Add Usage (cost_cents is computed server-side from model pricing)
-POST {{baseUrl}}/projects/1/usage
-Content-Type: application/json
-
-{
-  "model": "claude-sonnet-4-20250514",
-  "tokens_in": 1000,
-  "tokens_out": 500,
-  "latency_ms": 1200,
-  "tag": "chat"
-}
-
-### Add Usage - asymmetric tokens (verify daily stats shows tokens_in/out split)
-### Post this, then GET /projects/1/usage/daily — response should show
-### tokens_in=5000, tokens_out=200, tokens=5200 distinctly.
-POST {{baseUrl}}/projects/1/usage
+### Add Usage — asymmetric tokens (lots of input, little output)
+POST {{baseUrl}}/projects/{{projectId}}/usage
 Content-Type: application/json
 
 {
@@ -191,11 +245,8 @@ Content-Type: application/json
   "tag": "summarize"
 }
 
-### Get Daily Stats - today (reads from Redis cache if warm)
-GET {{baseUrl}}/projects/1/usage/daily
-
-### Add Usage - latency_ms omitted (now nullable; field absent from response)
-POST {{baseUrl}}/projects/1/usage
+### Add Usage — latency_ms omitted (it's optional/nullable)
+POST {{baseUrl}}/projects/{{projectId}}/usage
 Content-Type: application/json
 
 {
@@ -205,20 +256,8 @@ Content-Type: application/json
   "tag": "untimed"
 }
 
-### Add Usage - second event same day (Redis INCRBY should accumulate)
-POST {{baseUrl}}/projects/1/usage
-Content-Type: application/json
-
-{
-  "model": "gpt-4o",
-  "tokens_in": 2000,
-  "tokens_out": 800,
-  "latency_ms": 950,
-  "tag": "summary"
-}
-
-### Add Usage - different tag
-POST {{baseUrl}}/projects/1/usage
+### Add Usage — different tag, smaller call
+POST {{baseUrl}}/projects/{{projectId}}/usage
 Content-Type: application/json
 
 {
@@ -229,36 +268,24 @@ Content-Type: application/json
   "tag": "embedding"
 }
 
-### Push daily spend OVER budget — response should show over_budget=true
-### (budget on project 1 is 5000 cents; 1M input tokens on claude-opus-4 ≈ 1500 cents per call)
-POST {{baseUrl}}/projects/1/usage
+### Push spend OVER the daily $5 budget — single bulk call (~$2.70).
+### Fire 2-3 times to cross the budget, then GET /projects/{id} to see
+### budget_status.daily.over_budget = true.
+POST {{baseUrl}}/projects/{{projectId}}/usage
 Content-Type: application/json
 
 {
   "model": "claude-opus-4-20250514",
-  "tokens_in": 1000000,
-  "tokens_out": 500000,
+  "tokens_in": 30000,
+  "tokens_out": 30000,
   "latency_ms": 3000,
   "tag": "bulk"
 }
 
-### Fire the same bulk call again to push total over multiple budgets
-POST {{baseUrl}}/projects/1/usage
-Content-Type: application/json
-
-{
-  "model": "claude-opus-4-20250514",
-  "tokens_in": 1000000,
-  "tokens_out": 500000,
-  "latency_ms": 3000,
-  "tag": "bulk"
-}
-
-### GET project — should now show budget_status with over_budget flags
-GET {{baseUrl}}/projects/1
+### --- error cases ---
 
 ### Error - Add Usage with unknown model
-POST {{baseUrl}}/projects/1/usage
+POST {{baseUrl}}/projects/{{projectId}}/usage
 Content-Type: application/json
 
 {
@@ -274,135 +301,126 @@ POST {{baseUrl}}/projects/9999/usage
 Content-Type: application/json
 
 {
-  "model": "gpt-4o-mini",
+  "model": "{{modelName}}",
   "tokens_in": 100,
   "tokens_out": 50,
   "latency_ms": 200,
   "tag": "test"
 }
 
-### Error - Add Usage with invalid project ID
+### Error - Add Usage with non-numeric project ID
 POST {{baseUrl}}/projects/abc/usage
 Content-Type: application/json
 
 {
-  "model": "gpt-4o-mini",
+  "model": "{{modelName}}",
   "tokens_in": 100,
   "tokens_out": 50,
   "latency_ms": 200,
   "tag": "test"
 }
+
 
 ### ----------------------------------------------------
 ### USAGE STATS (Redis cache → SQL fallback)
 ### ----------------------------------------------------
 
-### Get Daily Stats - today (reads from Redis cache if warm)
-GET {{baseUrl}}/projects/1/usage/daily
+### Get Daily Stats — today (reads from Redis cache if warm)
+GET {{baseUrl}}/projects/{{projectId}}/usage/daily
 
-### Get Daily Stats - specific date
-GET {{baseUrl}}/projects/1/usage/daily?date=2026-04-21
+### Get Daily Stats — specific date
+GET {{baseUrl}}/projects/{{projectId}}/usage/daily?date=2026-04-28
 
-### Error - Get Daily Stats with invalid date format
-GET {{baseUrl}}/projects/1/usage/daily?date=21-04-2026
+### Get Monthly Stats — current month (cache-then-SQL for cost; SQL only for tokens)
+GET {{baseUrl}}/projects/{{projectId}}/usage/monthly
 
-### Get Monthly Stats - current month (reads from Redis cache if warm)
-GET {{baseUrl}}/projects/1/usage/monthly
+### Get Monthly Stats — specific month
+GET {{baseUrl}}/projects/{{projectId}}/usage/monthly?month=2026-04
 
-### Get Monthly Stats - specific month
-GET {{baseUrl}}/projects/1/usage/monthly?month=2026-04
-
-### Error - Get Monthly Stats with invalid month format
-GET {{baseUrl}}/projects/1/usage/monthly?month=2026/04
-
-### Get Stats for project with no usage (should return zeros)
+### Get Stats for project with no usage (returns zeros, not an error)
 GET {{baseUrl}}/projects/2/usage/daily
 
-### Get Stats for non-existent project (returns zeros, not an error)
+### Get Stats for non-existent project (also returns zeros)
 GET {{baseUrl}}/projects/9999/usage/daily
+
+### --- error cases ---
+
+### Error - Daily Stats with invalid date format
+GET {{baseUrl}}/projects/{{projectId}}/usage/daily?date=28-04-2026
+
+### Error - Monthly Stats with invalid month format
+GET {{baseUrl}}/projects/{{projectId}}/usage/monthly?month=2026/04
 
 
 ### ----------------------------------------------------
 ### USAGE RANGE & SUMMARY (SQL-only, no cache)
 ### ----------------------------------------------------
 
-### Project Range - single project, arbitrary date window
-GET {{baseUrl}}/projects/1/usage/range?from=2026-04-01&to=2026-04-21
+### Project Range — single project, arbitrary date window
+GET {{baseUrl}}/projects/{{projectId}}/usage/range?from=2026-04-01&to=2026-04-30
 
-### Project Range - same from/to (equivalent to daily stats)
-GET {{baseUrl}}/projects/1/usage/range?from=2026-04-21&to=2026-04-21
+### Project Range — same from/to (one-day window, equivalent to /daily)
+GET {{baseUrl}}/projects/{{projectId}}/usage/range?from=2026-04-28&to=2026-04-28
 
-### Project Range - no usage in window (returns zeros)
-GET {{baseUrl}}/projects/1/usage/range?from=2020-01-01&to=2020-01-31
+### Project Range — RFC3339 timestamps (precise window, e.g. a 4-hour slice)
+GET {{baseUrl}}/projects/{{projectId}}/usage/range?from=2026-04-28T10:00:00Z&to=2026-04-28T14:00:00Z
 
-### Project Range - non-existent project (returns zeros, not an error)
-GET {{baseUrl}}/projects/9999/usage/range?from=2026-04-01&to=2026-04-21
+### Project Range — mixed date + timestamp (from = start of day, to = exact)
+GET {{baseUrl}}/projects/{{projectId}}/usage/range?from=2026-04-28&to=2026-04-28T12:00:00Z
+
+### Project Range — window with no usage (returns zeros)
+GET {{baseUrl}}/projects/{{projectId}}/usage/range?from=2020-01-01&to=2020-01-31
+
+### Usage Summary — all projects with per-project breakdown + totals
+GET {{baseUrl}}/usage/summary?from=2026-04-01&to=2026-04-30
+
+### Usage Summary — single day across all projects
+GET {{baseUrl}}/usage/summary?from=2026-04-28&to=2026-04-28
+
+### Usage Summary — empty window (empty projects array, zero totals)
+GET {{baseUrl}}/usage/summary?from=2020-01-01&to=2020-01-31
+
+### --- error cases ---
 
 ### Error - Project Range missing from
-GET {{baseUrl}}/projects/1/usage/range?to=2026-04-21
+GET {{baseUrl}}/projects/{{projectId}}/usage/range?to=2026-04-30
 
 ### Error - Project Range missing to
-GET {{baseUrl}}/projects/1/usage/range?from=2026-04-01
+GET {{baseUrl}}/projects/{{projectId}}/usage/range?from=2026-04-01
 
-### Error - Project Range with from > to
-GET {{baseUrl}}/projects/1/usage/range?from=2026-04-21&to=2026-04-01
+### Error - Project Range from > to
+GET {{baseUrl}}/projects/{{projectId}}/usage/range?from=2026-04-30&to=2026-04-01
 
-### Error - Project Range with invalid date format
-GET {{baseUrl}}/projects/1/usage/range?from=04-01-2026&to=04-21-2026
-
-### Project Range - RFC3339 timestamps (exact window, e.g. a 4-hour slice)
-GET {{baseUrl}}/projects/1/usage/range?from=2026-04-21T10:00:00Z&to=2026-04-21T14:00:00Z
-
-### Project Range - mixed date + timestamp (from=start of day, to=exact)
-GET {{baseUrl}}/projects/1/usage/range?from=2026-04-21&to=2026-04-21T12:00:00Z
-
-
-### Usage Summary - all projects with per-project breakdown + totals
-GET {{baseUrl}}/usage/summary?from=2026-04-01&to=2026-04-21
-
-### Usage Summary - RFC3339 timestamps (exact window)
-GET {{baseUrl}}/usage/summary?from=2026-04-21T00:00:00Z&to=2026-04-21T12:00:00Z
-
-### Usage Summary - single day
-GET {{baseUrl}}/usage/summary?from=2026-04-21&to=2026-04-21
-
-### Usage Summary - empty window (no usage → empty projects array, zero totals)
-GET {{baseUrl}}/usage/summary?from=2020-01-01&to=2020-01-31
+### Error - Project Range invalid date format
+GET {{baseUrl}}/projects/{{projectId}}/usage/range?from=04-01-2026&to=04-30-2026
 
 ### Error - Usage Summary missing both params
 GET {{baseUrl}}/usage/summary
 
-### Error - Usage Summary with from > to
-GET {{baseUrl}}/usage/summary?from=2026-04-21&to=2026-04-01
-
 ### Error - Usage Summary with invalid date
-GET {{baseUrl}}/usage/summary?from=not-a-date&to=2026-04-21
+GET {{baseUrl}}/usage/summary?from=not-a-date&to=2026-04-30
 
 
 ### ----------------------------------------------------
-### USAGE EVENTS (cursor-paginated lists of raw events)
+### USAGE EVENTS — pagination variations and errors
 ### ----------------------------------------------------
 
-### Project events - first page, all-time (30 per page default)
-GET {{baseUrl}}/projects/1/usage/events
+### Project events — explicit date range + smaller page
+GET {{baseUrl}}/projects/{{projectId}}/usage/events?from=2026-04-01&to=2026-04-30&limit=10
 
-### Project events - explicit date range + smaller page
-GET {{baseUrl}}/projects/1/usage/events?from=2026-04-01&to=2026-04-30&limit=10
+### Project events — next page (chained from QUICKSTART [7] firstPage)
+GET {{baseUrl}}/projects/{{projectId}}/usage/events?cursor={{firstPage.response.body.$.next_cursor}}
 
-### Project events - next page (paste next_cursor value from previous response)
-GET {{baseUrl}}/projects/1/usage/events?cursor=<paste-here>
-
-### All projects - first page, all-time
+### All projects — first page, all-time
 GET {{baseUrl}}/usage/events
 
-### All projects - scoped to today with small page
-GET {{baseUrl}}/usage/events?from=2026-04-21&to=2026-04-21&limit=5
+### All projects — scoped to today with small page
+GET {{baseUrl}}/usage/events?from=2026-04-28&to=2026-04-28&limit=5
 
-### All projects - next page
-GET {{baseUrl}}/usage/events?cursor=<paste-here>
-
-### Events - limit boundary clamping (request 500, gets capped at 100 per server policy)
+### Limit boundary — request 500, server caps at 100
 GET {{baseUrl}}/usage/events?limit=500
+
+### --- error cases ---
 
 ### Error - invalid cursor
 GET {{baseUrl}}/usage/events?cursor=not-a-real-cursor
@@ -411,4 +429,4 @@ GET {{baseUrl}}/usage/events?cursor=not-a-real-cursor
 GET {{baseUrl}}/usage/events?limit=abc
 
 ### Error - from > to
-GET {{baseUrl}}/usage/events?from=2026-04-21&to=2026-04-01
+GET {{baseUrl}}/usage/events?from=2026-04-28&to=2026-04-01
