@@ -5,6 +5,7 @@
 **Real-time LLM usage and budget tracker with auto-provisioned Grafana dashboards.**
 
 [![Go Version](https://img.shields.io/badge/go-1.26-00ADD8?logo=go)](go.mod)
+[![TUI](https://img.shields.io/badge/tui-bubbletea-FF5FAB)](https://github.com/charmbracelet/bubbletea)
 [![Docker](https://img.shields.io/badge/docker-ready-2496ED?logo=docker)](docker-compose.yml)
 [![Prometheus](https://img.shields.io/badge/metrics-prometheus-E6522C?logo=prometheus)](prometheus.yml)
 [![Grafana](https://img.shields.io/badge/dashboards-grafana-F46800?logo=grafana)](grafana/dashboards/pulse-overview.json)
@@ -14,10 +15,6 @@
   <tr>
     <td width="50%" style="border:none;padding:4px;"><img src="docs/tui.png" alt="Pulse TUI" /></td>
     <td width="50%" style="border:none;padding:4px;"><img src="docs/dashboard.png" alt="Pulse Grafana dashboard" /></td>
-  </tr>
-  <tr>
-    <td align="center" style="border:none;"><sub>Terminal UI for full CRUD</sub></td>
-    <td align="center" style="border:none;"><sub>Auto-provisioned Grafana dashboard</sub></td>
   </tr>
 </table>
 
@@ -31,6 +28,7 @@ I built Pulse to solve this. It's a lightweight, self-hosted tracker for anyone 
 
 ## Features
 
+- **Built-in terminal UI** powered by Bubble Tea - manage projects, models, and budgets, browse events, run range queries, and log usage without touching curl.
 - **Per-project daily, monthly, and total budgets** with warn-only enforcement (your LLM call already happened, so blocking is pointless).
 - **Atomic budget checks via Lua** running inside Redis. One round-trip increments three counters and returns over/under flags.
 - **Cost computed server-side** from a model pricing table you control. Clients pass tokens, server multiplies. Stored as millicents to avoid integer-truncation errors on cheap models.
