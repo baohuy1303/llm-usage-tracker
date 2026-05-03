@@ -29,7 +29,7 @@ I built Pulse to solve this. It's a lightweight, self-hosted tracker for anyone 
 - **Cursor-paginated event listings** for raw event history.
 - **Auto-provisioned Grafana dashboard** with project selector, budget gauges, latest-calls table. Boots ready-to-use on `docker compose up`.
 - **Prometheus metrics** for HTTP, cache, business events. Scrape with anything.
-- **No external services**. SQLite + Redis + your binary. Run it on a $5 VPS.
+- **No external services**. SQLite + Redis + your binary. Run it on your machine or anywhere!
 
 ## Quick start
 
@@ -48,7 +48,7 @@ That's it. Four containers come up:
 | Grafana | http://localhost:3000 | Dashboards (admin / admin) |
 | Redis | (internal) | Counter cache |
 
-Open Grafana, click **Dashboards** > **Pulse Overview**, pick a project from the dropdown.
+Open Grafana, click **Dashboards** > **Pulse Overview**, type in projectID number or pick a project from the dropdown.
 
 To make your first API call, open [`api.http`](api.http) in VS Code with REST Client installed and run the QUICKSTART section top-to-bottom. Full API navigation lives in [`api.md`](api.md).
 
@@ -149,20 +149,14 @@ When the SQL schema changes, delete `./data/app.db` so the new migration applies
 When the Lua script changes the shape of a Redis key (e.g. tokens key changing from string to hash), `redis-cli FLUSHDB` to avoid `WRONGTYPE` errors against keys with the old shape.
 
 ## Roadmap
-
+- [ ] Terminal UI for the compact dev tools experience
 - [ ] Auth on `/metrics` and the public API surface
 - [ ] OpenTelemetry tracing on the request path
 - [ ] Server-sent events for live dashboard streaming (skip Grafana refresh delay)
 - [ ] SDK for Go and Python so devs don't have to roll their own POST wrapper
-- [ ] Alertmanager integration for budget breach pages
-
-## License
-
-[MIT](LICENSE)
-
 
 ## My notes
 
 It's a fun little project where I try to learn and implement many golang and new techs. I would like to expand this project to support team tracking and AI-assisted IDEs in the future.
 
-
+Feel free to reach out, I'm more than happy to chat!
