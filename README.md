@@ -10,14 +10,14 @@
 [![Grafana](https://img.shields.io/badge/dashboards-grafana-F46800?logo=grafana)](grafana/dashboards/pulse-overview.json)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-<table>
+<table style="border:none;border-collapse:collapse;">
   <tr>
-    <td width="50%"><img src="docs/tui.png" alt="Pulse TUI" /></td>
-    <td width="50%"><img src="docs/dashboard.png" alt="Pulse Grafana dashboard" /></td>
+    <td width="50%" style="border:none;padding:4px;"><img src="docs/tui.png" alt="Pulse TUI" /></td>
+    <td width="50%" style="border:none;padding:4px;"><img src="docs/dashboard.png" alt="Pulse Grafana dashboard" /></td>
   </tr>
   <tr>
-    <td align="center"><sub>Terminal UI — projects, models, events, ad-hoc usage entry</sub></td>
-    <td align="center"><sub>Auto-provisioned Grafana dashboard</sub></td>
+    <td align="center" style="border:none;"><sub>Terminal UI for full CRUD</sub></td>
+    <td align="center" style="border:none;"><sub>Auto-provisioned Grafana dashboard</sub></td>
   </tr>
 </table>
 
@@ -66,7 +66,7 @@ go build -o pulse-tui ./cmd/tui
 ./pulse-tui
 ```
 
-The TUI is the primary way to drive Pulse day-to-day. Tabs across the top cycle through **projects, models, events, range queries, and manual usage entry** — create projects with budgets, add models with pricing, browse events, and log ad-hoc LLM calls without touching curl. Press `?` for keybinds, `q` to quit. Reads `BASE_URL` from env (defaults to `http://localhost:8080`).
+The TUI is the primary way to drive Pulse day-to-day. Tabs across the top cycle through **projects, models, events, range queries, and manual usage entry** - create projects with budgets, add models with pricing, browse events, and log ad-hoc LLM calls without touching curl. Press `?` for keybinds, `q` to quit. Reads `BASE_URL` from env (defaults to `http://localhost:8080`).
 
 **3. Open the dashboard**
 
