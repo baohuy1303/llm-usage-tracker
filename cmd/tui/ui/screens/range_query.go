@@ -90,25 +90,27 @@ func (s *RangeQueryScreen) buildForm() {
 		huh.NewGroup(
 			huh.NewSelect[string]().
 				Title("Scope").
+				Description("Single project = stats for one project in the window. All projects = aggregate + per-project breakdown.").
 				Options(
 					huh.NewOption("Single project", "project"),
 					huh.NewOption("All projects (summary)", "all"),
 				).
 				Value(&s.scope),
 			huh.NewSelect[string]().
-				Title("Project (when scope = single project)").
+				Title("Project").
+				Description("Used only when Scope = single project. Ignored for the All projects summary.").
 				Options(projectOpts...).
 				Value(&s.projectIDStr),
 			huh.NewInput().
 				Title("From").
-				Description("YYYY-MM-DD or RFC3339.").
+				Description("Inclusive start. Date \"YYYY-MM-DD\" (e.g. \"2026-04-26\") or RFC3339 timestamp (e.g. \"2026-04-26T00:00:00Z\").").
 				Value(&s.from).
-				Validate(validateNonEmpty),
+				Validate(validateDateOrRFC3339),
 			huh.NewInput().
 				Title("To").
-				Description("YYYY-MM-DD or RFC3339.").
+				Description("Inclusive end. Same formats as From. Date-only is interpreted as 00:00:00 UTC, so use a timestamp for sub-day windows.").
 				Value(&s.to).
-				Validate(validateNonEmpty),
+				Validate(validateDateOrRFC3339),
 		),
 	).WithShowHelp(false).WithShowErrors(true)
 }
@@ -234,4 +236,19 @@ func validateNonEmpty(s string) error {
 		return fmt.Errorf("required")
 	}
 	return nil
+}
+
+// validateDateOrRFC3339 accepts a non-empty "YYYY-MM-DD" date or an RFC3339
+// timestamp. Matches the formats the API parses on /usage/range and friends.
+func validateDateOrRFC3339(s string) error {
+	if s == "" {
+		return fmt.Errorf("required")
+	}
+	if _, err := time.Parse("2006-01-02", s); err == nil {
+		return nil
+	}
+	if _, err := time.Parse(time.RFC3339, s); err == nil {
+		return nil
+	}
+	return fmt.Errorf("must be YYYY-MM-DD or RFC3339 (e.g. 2026-04-26 or 2026-04-26T15:04:05Z)")
 }

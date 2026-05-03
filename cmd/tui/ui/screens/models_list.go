@@ -165,7 +165,12 @@ func (s *ModelsListScreen) View() string {
 		m := s.models[s.cursor]
 		out += "\n" + ui.WarnText.Render(fmt.Sprintf("Delete model %q (id=%d)? (y/n)", m.Name, m.ID))
 	} else {
-		out += "\n" + ui.HelpDesc.Render("c create  e edit  d delete  r refresh")
+		out += "\n" + ui.HintBar([][2]string{
+			{"c", "create"},
+			{"e", "edit"},
+			{"d", "delete"},
+			{"r", "refresh"},
+		})
 	}
 	return out
 }

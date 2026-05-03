@@ -56,7 +56,7 @@ func (s *ProjectFormScreen) buildForm() {
 		huh.NewGroup(
 			huh.NewInput().
 				Title("Name").
-				Description("Required. Must be unique.").
+				Description("Required. Free-form, must be unique across active projects (e.g. \"acme-prod\", \"chatbot-staging\").").
 				Value(&s.name).
 				Validate(func(str string) error {
 					if str == "" {
@@ -66,17 +66,17 @@ func (s *ProjectFormScreen) buildForm() {
 				}),
 			huh.NewInput().
 				Title("Daily Budget (dollars)").
-				Description("Optional. Leave blank for no daily limit.").
+				Description("Optional. Decimal dollars per UTC day (e.g. \"5\" or \"2.50\"). Leave blank for no daily limit.").
 				Value(&s.daily).
 				Validate(validateOptionalDollar),
 			huh.NewInput().
 				Title("Monthly Budget (dollars)").
-				Description("Optional. Leave blank for no monthly limit.").
+				Description("Optional. Decimal dollars per calendar month (e.g. \"100\"). Leave blank for no monthly limit.").
 				Value(&s.monthly).
 				Validate(validateOptionalDollar),
 			huh.NewInput().
 				Title("Total Budget (dollars)").
-				Description("Optional. Leave blank for no all-time cap.").
+				Description("Optional. All-time cap in decimal dollars (e.g. \"1000\"). Leave blank for no all-time cap.").
 				Value(&s.total).
 				Validate(validateOptionalDollar),
 		),

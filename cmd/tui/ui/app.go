@@ -150,11 +150,36 @@ func (a *App) View() string {
 			"\n\n" + StatusBar.Render("Set BASE_URL to point at a running Pulse API. Press q to quit.")
 	}
 
+	logo := a.renderLogo()
 	header := a.renderTabBar()
 	body := a.active().View()
 	footer := StatusBar.Render(a.footerHint())
 
-	return lipgloss.JoinVertical(lipgloss.Left, header, body, footer)
+	return lipgloss.JoinVertical(lipgloss.Left, logo, header, body, footer)
+}
+
+// pulseLogo is the block-letter wordmark shown at the top of every screen.
+// Kept as a single multi-line string so it renders as one block under the
+// gradient-style style in renderLogo.
+const pulseLogo = `█▀█ █░█ █░░ █▀ █▀▀
+█▀▀ █▄█ █▄▄ ▄█ ██▄`
+
+func (a *App) renderLogo() string {
+	logoStyle := lipgloss.NewStyle().
+		Foreground(ColorPrimary).
+		Bold(true)
+	tagline := lipgloss.NewStyle().
+		Foreground(ColorAccent).
+		Italic(true).
+		Render("// llm usage tracker")
+
+	left := logoStyle.Render(pulseLogo)
+	right := lipgloss.NewStyle().
+		Padding(1, 0, 0, 2). // align tagline near the wordmark's baseline
+		Render(tagline)
+
+	row := lipgloss.JoinHorizontal(lipgloss.Bottom, left, right)
+	return lipgloss.NewStyle().Padding(0, 1).Render(row)
 }
 
 func (a *App) renderTabBar() string {
@@ -180,9 +205,18 @@ func (a *App) renderTabBar() string {
 
 func (a *App) footerHint() string {
 	if len(a.stack) > 0 {
-		return "esc back  ?  help  q quit"
+		return HintBar([][2]string{
+			{"esc", "back"},
+			{"?", "help"},
+			{"q", "quit"},
+		})
 	}
-	return "tab next  r refresh  ?  help  q quit"
+	return HintBar([][2]string{
+		{"tab", "next"},
+		{"r", "refresh"},
+		{"?", "help"},
+		{"q", "quit"},
+	})
 }
 
 // Width and Height expose the terminal size to screens that need to layout against it.

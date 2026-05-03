@@ -200,7 +200,14 @@ func (s *ProjectsListScreen) View() string {
 		p := s.projects[s.cursor]
 		b += "\n" + ui.WarnText.Render(fmt.Sprintf("Delete project %q (id=%d)? (y/n)", p.Name, p.ID))
 	} else {
-		b += "\n" + ui.HelpDesc.Render("c create  e edit  d delete  enter detail  u add usage  r refresh")
+		b += "\n" + ui.HintBar([][2]string{
+			{"c", "create"},
+			{"e", "edit"},
+			{"d", "delete"},
+			{"enter", "detail"},
+			{"u", "add usage"},
+			{"r", "refresh"},
+		})
 	}
 
 	return b

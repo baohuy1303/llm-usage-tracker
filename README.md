@@ -10,7 +10,16 @@
 [![Grafana](https://img.shields.io/badge/dashboards-grafana-F46800?logo=grafana)](grafana/dashboards/pulse-overview.json)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-![Pulse Dashboard](docs/dashboard.png)
+<table>
+  <tr>
+    <td width="50%"><img src="docs/tui.png" alt="Pulse TUI" /></td>
+    <td width="50%"><img src="docs/dashboard.png" alt="Pulse Grafana dashboard" /></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Terminal UI — projects, models, events, ad-hoc usage entry</sub></td>
+    <td align="center"><sub>Auto-provisioned Grafana dashboard</sub></td>
+  </tr>
+</table>
 
 </div>
 
@@ -33,13 +42,15 @@ I built Pulse to solve this. It's a lightweight, self-hosted tracker for anyone 
 
 ## Quick start
 
+**1. Bring up the stack**
+
 ```bash
 git clone https://github.com/baohuy1303/llm-usage-tracker.git
 cd llm-usage-tracker
 docker compose up --build
 ```
 
-That's it. Four containers come up:
+Four containers come up:
 
 | Service | URL | What |
 |---------|-----|------|
@@ -48,9 +59,18 @@ That's it. Four containers come up:
 | Grafana | http://localhost:3000 | Dashboards (admin / admin) |
 | Redis | (internal) | Counter cache |
 
-Open Grafana, click **Dashboards** > **Pulse Overview**, type in projectID number or pick a project from the dropdown.
+**2. Launch the TUI**
 
-To make your first API call, open [`api.http`](api.http) in VS Code with REST Client installed and run the QUICKSTART section top-to-bottom. Full API navigation lives in [`api.md`](api.md).
+```bash
+go build -o pulse-tui ./cmd/tui
+./pulse-tui
+```
+
+The TUI is the primary way to drive Pulse day-to-day. Tabs across the top cycle through **projects, models, events, range queries, and manual usage entry** — create projects with budgets, add models with pricing, browse events, and log ad-hoc LLM calls without touching curl. Press `?` for keybinds, `q` to quit. Reads `BASE_URL` from env (defaults to `http://localhost:8080`).
+
+**3. Open the dashboard**
+
+Open Grafana → **Dashboards** → **Pulse Overview**, then pick a project from the dropdown.
 
 ## Architecture
 
@@ -66,38 +86,6 @@ graph LR
 ```
 
 SQL is the source of truth. Redis caches per-day and per-month counters for fast budget reads. Prometheus stores time-series for dashboards. The dashboard hits Prometheus for aggregates and your API directly for event-level lists.
-
-## API
-
-[`api.md`](api.md) is the navigation index. [`api.http`](api.http) is the dev-time control panel.
-
-The **9 most-used endpoints** are at the top of `api.http` under a `QUICKSTART` heading and pre-numbered. Detailed CRUD plus error cases live below line 105.
-
-```bash
-# Create a project
-curl -X POST http://localhost:8080/projects/create \
-  -H "Content-Type: application/json" \
-  -d '{"name":"Demo","daily_budget_dollars":5.00}'
-
-# Log a call
-curl -X POST http://localhost:8080/projects/1/usage \
-  -H "Content-Type: application/json" \
-  -d '{"model":"gpt-4o","tokens_in":1500,"tokens_out":500,"latency_ms":350}'
-```
-
-## HTTP client options
-
-`api.http` is the canonical request collection. How to use it depends on your editor:
-
-| Tool | Works with `api.http`? | Setup |
-|------|----------------------|-------|
-| **REST Client** (VS Code) | Native | Install [humao.rest-client](https://marketplace.visualstudio.com/items?itemName=humao.rest-client). Click `Send Request` above any block. |
-| **JetBrains HTTP Client** | Native | Built into IntelliJ/GoLand/etc. Click ▶ in the gutter. |
-| **Thunder Client** (VS Code) | Yes | Open the file, then `Import to Collection`. Newer Thunder Client versions also offer an inline runner via right-click on the file. |
-| **Bruno** | Manual | Bruno doesn't import `.http` files. Either copy individual requests over, or run `api.http` through REST Client and reach for Bruno when you need a richer UI. |
-| **curl** | Reference only | See the curl examples in [`api.md`](api.md) and the comments in `api.http`. |
-
-If you don't have a strong preference, install REST Client. It's free, zero-configuration, and the file is designed for it (named requests for response chaining, variable expansion, etc.).
 
 ## Configuration
 
@@ -127,7 +115,7 @@ All optional. Defaults work for `docker compose up`.
 # Run locally without Docker
 go run ./cmd/api
 
-# Run tests (when you add some)
+# Run tests
 go test ./...
 
 # Wipe everything and start fresh
@@ -135,21 +123,16 @@ docker compose down -v
 redis-cli FLUSHDB        # only if you also kept Redis from a prior run
 ```
 
-For an interactive terminal alternative to `api.http`, build the TUI:
-
-```bash
-go build -o pulse-tui ./cmd/tui
-./pulse-tui
-```
-
-Tabs across the top cycle through projects, models, events, range queries, and manual usage entry. Press `?` for keybinds. Reads `BASE_URL` from env (defaults to `http://localhost:8080`).
-
 When the SQL schema changes, delete `./data/app.db` so the new migration applies on next start.
 
 When the Lua script changes the shape of a Redis key (e.g. tokens key changing from string to hash), `redis-cli FLUSHDB` to avoid `WRONGTYPE` errors against keys with the old shape.
 
+### HTTP API (optional)
+
+The TUI covers everything you need interactively. If you want to script Pulse or wire it into another service, the raw HTTP API is documented in [`api.md`](api.md), with ready-to-run requests in [`api.http`](api.http) (top-9 endpoints under a `QUICKSTART` heading; open in VS Code with the REST Client extension or any JetBrains IDE).
+
 ## Roadmap
-- [ ] Terminal UI for the compact dev tools experience
+- [x] Terminal UI for the compact dev tools experience
 - [ ] Auth on `/metrics` and the public API surface
 - [ ] OpenTelemetry tracing on the request path
 - [ ] Server-sent events for live dashboard streaming (skip Grafana refresh delay)

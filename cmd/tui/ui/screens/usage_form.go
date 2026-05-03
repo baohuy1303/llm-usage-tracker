@@ -13,6 +13,12 @@ import (
 	"llm-usage-tracker/cmd/tui/ui"
 )
 
+// reserveLines is the vertical space outside the form (app logo + navbar +
+// title + subtitle + footer + spacing). Without an explicit height the huh
+// form expands to fill the full window, which pushes the navbar off-screen
+// in alt-screen mode.
+const reserveLines = 14
+
 // UsageFormScreen posts a usage event manually. Project ID is fixed; the
 // model is a dropdown populated on Init from /models. If projectID == 0 (the
 // "no project picked" case via the Usage tab), the form also shows a project
@@ -39,6 +45,9 @@ type UsageFormScreen struct {
 	err        error
 	result     *client.UsageResult
 	done       bool
+
+	windowWidth  int
+	windowHeight int
 }
 
 // NewUsageForm builds the form scoped to one project. Pass projectID=0 to
@@ -96,6 +105,7 @@ func (s *UsageFormScreen) buildForm() {
 		groups = append(groups, huh.NewGroup(
 			huh.NewSelect[string]().
 				Title("Project").
+				Description("Required. The project this LLM call should be billed to.").
 				Options(options...).
 				Value(&s.projectIDStr),
 		))
@@ -112,28 +122,51 @@ func (s *UsageFormScreen) buildForm() {
 	groups = append(groups, huh.NewGroup(
 		huh.NewSelect[string]().
 			Title("Model").
+			Description("Required. Pricing for this model determines the cost the server computes.").
 			Options(modelOptions...).
 			Value(&s.modelName),
 		huh.NewInput().
 			Title("Tokens In").
+			Description("Required. Whole number ≥ 0. Prompt tokens sent to the model. e.g. \"1240\".").
 			Value(&s.tokensIn).
 			Validate(validatePositiveInt),
 		huh.NewInput().
 			Title("Tokens Out").
+			Description("Required. Whole number ≥ 0. Completion tokens returned by the model. e.g. \"480\".").
 			Value(&s.tokensOut).
 			Validate(validatePositiveInt),
 		huh.NewInput().
 			Title("Latency (ms)").
-			Description("Optional. Leave blank if not measured.").
+			Description("Optional. Whole number of milliseconds the call took (e.g. \"1850\"). Leave blank if not measured.").
 			Value(&s.latencyMs).
 			Validate(validateOptionalNonNegInt),
 		huh.NewInput().
 			Title("Tag").
-			Description("Optional. e.g. \"chat\", \"summarize\".").
+			Description("Optional free-form label for grouping/filtering events (e.g. \"chat\", \"summarize\", \"prod\").").
 			Value(&s.tag),
 	))
 
 	s.form = huh.NewForm(groups...).WithShowHelp(false).WithShowErrors(true)
+	s.applyFormSize()
+}
+
+// applyFormSize caps the form's height (and width) so the surrounding
+// navbar/title/footer remain visible. huh defaults to filling the full
+// terminal height, which clips the app chrome.
+func (s *UsageFormScreen) applyFormSize() {
+	if s.form == nil {
+		return
+	}
+	if s.windowHeight > 0 {
+		h := s.windowHeight - reserveLines
+		if h < 6 {
+			h = 6
+		}
+		s.form = s.form.WithHeight(h)
+	}
+	if s.windowWidth > 0 {
+		s.form = s.form.WithWidth(s.windowWidth)
+	}
 }
 
 type usageSubmittedMsg struct {
@@ -171,6 +204,11 @@ func (s *UsageFormScreen) submit() tea.Cmd {
 
 func (s *UsageFormScreen) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 	switch m := msg.(type) {
+	case tea.WindowSizeMsg:
+		s.windowWidth = m.Width
+		s.windowHeight = m.Height
+		s.applyFormSize()
+
 	case formDataLoadedMsg:
 		if m.err != nil {
 			s.err = m.err
@@ -218,7 +256,8 @@ func (s *UsageFormScreen) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 }
 
 func (s *UsageFormScreen) View() string {
-	out := ui.Title.Render("Add Usage Event") + "\n\n"
+	out := ui.Title.Render("Add Usage Event") + "\n" +
+		ui.Subtitle.Render("Record a single LLM call. Cost is computed server-side from tokens × model pricing.") + "\n\n"
 
 	if !s.loaded && s.err == nil {
 		return out + ui.StatusBar.Render("loading models…")

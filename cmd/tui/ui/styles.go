@@ -1,6 +1,10 @@
 package ui
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"strings"
+
+	"github.com/charmbracelet/lipgloss"
+)
 
 // Styles are shared across all screens. Defined once here so colors stay
 // consistent and a future theme switch is a single edit.
@@ -51,3 +55,19 @@ var (
 	HelpDesc = lipgloss.NewStyle().
 			Foreground(ColorMuted)
 )
+
+// HintBar renders a list of {key, description} pairs as `key: desc` segments
+// joined by ` || `, using HelpKey/HelpDesc styling so the keys stand out
+// from their descriptions. Used by the global footer and per-screen hint
+// lines so the visual treatment stays consistent.
+func HintBar(pairs [][2]string) string {
+	if len(pairs) == 0 {
+		return ""
+	}
+	sep := HelpDesc.Render(" || ")
+	parts := make([]string, len(pairs))
+	for i, p := range pairs {
+		parts[i] = HelpKey.Render(p[0]) + HelpDesc.Render(": "+p[1])
+	}
+	return strings.Join(parts, sep)
+}

@@ -131,7 +131,12 @@ func (s *ProjectDetailScreen) View() string {
 		}
 	}
 
-	out += "\n" + ui.HelpDesc.Render("u add usage  e edit project  r refresh  esc back")
+	out += "\n" + ui.HintBar([][2]string{
+		{"u", "add usage"},
+		{"e", "edit project"},
+		{"r", "refresh"},
+		{"esc", "back"},
+	})
 	return out
 }
 

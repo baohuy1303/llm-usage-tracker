@@ -144,11 +144,17 @@ func (s *EventsBrowserScreen) View() string {
 	// Filter bar.
 	out += ui.Subtitle.Render(fmt.Sprintf("  filters: from=%q  to=%q  page=%d", s.from, s.to, len(s.cursors)+1)) + "\n\n"
 
-	if s.editingFrom {
-		out += ui.WarnText.Render(fmt.Sprintf("editing from: %s_  (enter to apply, esc to cancel)", s.editBuf)) + "\n\n"
-	}
-	if s.editingTo {
-		out += ui.WarnText.Render(fmt.Sprintf("editing to: %s_  (enter to apply, esc to cancel)", s.editBuf)) + "\n\n"
+	if s.editingFrom || s.editingTo {
+		field := "from"
+		if s.editingTo {
+			field = "to"
+		}
+		out += ui.WarnText.Render(fmt.Sprintf("editing %s: %s_", field, s.editBuf)) + "\n"
+		out += ui.HelpDesc.Render("  format: YYYY-MM-DD (e.g. 2026-04-26) or RFC3339 (e.g. 2026-04-26T15:04:05Z). leave blank to clear.") + "\n"
+		out += ui.HintBar([][2]string{
+			{"enter", "apply"},
+			{"esc", "cancel"},
+		}) + "\n\n"
 	}
 
 	if s.loading && s.page == nil {
@@ -159,7 +165,12 @@ func (s *EventsBrowserScreen) View() string {
 	}
 	if s.page == nil || len(s.page.Events) == 0 {
 		out += ui.Subtitle.Render("no events in this window")
-		out += "\n\n" + ui.HelpDesc.Render("f set from  t set to  x clear filters  r refresh")
+		out += "\n\n" + ui.HintBar([][2]string{
+			{"f", "set from"},
+			{"t", "set to"},
+			{"x", "clear filters"},
+			{"r", "refresh"},
+		})
 		return out
 	}
 
@@ -189,6 +200,13 @@ func (s *EventsBrowserScreen) View() string {
 		pageInfo += " (end)"
 	}
 
-	out += "\n" + ui.HelpDesc.Render(fmt.Sprintf("%s   n next  p prev  f set from  t set to  x clear  r refresh", pageInfo))
+	out += "\n" + ui.HelpDesc.Render(pageInfo) + "   " + ui.HintBar([][2]string{
+		{"n", "next"},
+		{"p", "prev"},
+		{"f", "set from"},
+		{"t", "set to"},
+		{"x", "clear"},
+		{"r", "refresh"},
+	})
 	return out
 }
