@@ -135,6 +135,15 @@ docker compose down -v
 redis-cli FLUSHDB        # only if you also kept Redis from a prior run
 ```
 
+For an interactive terminal alternative to `api.http`, build the TUI:
+
+```bash
+go build -o pulse-tui ./cmd/tui
+./pulse-tui
+```
+
+Tabs across the top cycle through projects, models, events, range queries, and manual usage entry. Press `?` for keybinds. Reads `BASE_URL` from env (defaults to `http://localhost:8080`).
+
 When the SQL schema changes, delete `./data/app.db` so the new migration applies on next start.
 
 When the Lua script changes the shape of a Redis key (e.g. tokens key changing from string to hash), `redis-cli FLUSHDB` to avoid `WRONGTYPE` errors against keys with the old shape.
